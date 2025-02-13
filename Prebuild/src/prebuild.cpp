@@ -6,7 +6,8 @@ int main(int argc, char** argv)
     {
         case 1:
         {
-            std::cout << "ERROR: not enough arguments provided!" << std::endl;
+            //std::cout << "ERROR: not enough arguments provided!" << std::endl;
+            Prebuild::Ref<Prebuild::Platform> platform = Prebuild::Platform::Create("cmake");
             break;
         }
         case 2:

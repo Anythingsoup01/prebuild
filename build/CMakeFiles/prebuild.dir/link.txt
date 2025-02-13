@@ -1,0 +1,1 @@
+/usr/bin/c++     CMakeFiles/prebuild.dir/Prebuild/src/prebuild.cpp.o CMakeFiles/prebuild.dir/Prebuild/src/Core/Platform.cpp.o CMakeFiles/prebuild.dir/Prebuild/src/Platform/CMake/CMakePlatform.cpp.o  -o prebuild 

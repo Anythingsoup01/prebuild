@@ -1,0 +1,22 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/workspaces/prebuild/Prebuild/src/Core/Core.h
+memory
+-
+
+/workspaces/prebuild/Prebuild/src/Core/Platform.h
+Core.h
+/workspaces/prebuild/Prebuild/src/Core/Core.h
+
+/workspaces/prebuild/Prebuild/src/prebuild.cpp
+iostream
+-
+Core/Platform.h
+/workspaces/prebuild/Prebuild/src/Core/Platform.h
+

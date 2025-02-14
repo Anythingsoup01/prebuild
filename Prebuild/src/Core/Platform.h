@@ -19,12 +19,12 @@ namespace Prebuild
             CONSOLEAPP = 3,
         };
 
-        char* Keywords[10] = 
+        const char* Keywords[10] = 
         {
             // WORKSPACE
             "workspace",
             "version",
-            "architecture"
+            "architecture",
             "flags",
             // PROJECTS
             "project",

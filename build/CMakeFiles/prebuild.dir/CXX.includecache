@@ -14,30 +14,6 @@ memory
 Core.h
 ../Prebuild/src/Core/Core.h
 
-../Prebuild/src/Platform/CMake/CMakePlatform.h
-Core/Platform.h
-../Prebuild/src/Platform/CMake/Core/Platform.h
-string
--
-vector
--
-unordered_map
--
-
-/workspaces/prebuild/Prebuild/src/Core/Core.h
-memory
--
-
-/workspaces/prebuild/Prebuild/src/Core/Platform.cpp
-Platform.h
-/workspaces/prebuild/Prebuild/src/Core/Platform.h
-Platform/CMake/CMakePlatform.h
-/workspaces/prebuild/Prebuild/src/Core/Platform/CMake/CMakePlatform.h
-
-/workspaces/prebuild/Prebuild/src/Core/Platform.h
-Core.h
-/workspaces/prebuild/Prebuild/src/Core/Core.h
-
 /workspaces/prebuild/Prebuild/src/Platform/CMake/CMakePlatform.cpp
 CMakePlatform.h
 /workspaces/prebuild/Prebuild/src/Platform/CMake/CMakePlatform.h
@@ -61,10 +37,4 @@ vector
 -
 unordered_map
 -
-
-/workspaces/prebuild/Prebuild/src/prebuild.cpp
-iostream
--
-Core/Platform.h
-/workspaces/prebuild/Prebuild/src/Core/Platform.h
 

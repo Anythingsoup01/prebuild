@@ -59,15 +59,18 @@ namespace Prebuild
         for (int i = 0; i < inlineProjectCount; i++)
         {
             std::string str = ParseProject(pos);
-            m_InlineProjectStrings.push_back(str);
+            ProjectConfig cfg = BuildProjectConfig(str);
+            m_Projects.InlineProjects.push_back(cfg);
         }
 
         for (int i = 0; i < externalProjectCount; i++)
         {
             size_t val = 0;
             std::string str = ParseProject(val, m_ExternalProjectDirs[i]);
-            m_ExternalProjectStrings.push_back(str);
+            ProjectConfig cfg = BuildProjectConfig(str);
+            m_Projects.ExternalProjects.push_back(cfg);
         }
+
     }
 
     std::string CMakePlatform::ParseWorkspace(size_t& pos)
@@ -152,36 +155,95 @@ namespace Prebuild
 
     void CMakePlatform::BuildWorkspaceConfig()
     {
-        size_t pos = m_WorkspaceString.find_first_of("workspace");
+        size_t pos = 0;
         while (pos != std::string::npos)
         {
             size_t eol = m_WorkspaceString.find_first_of("\r\n", pos);
             std::string line = m_WorkspaceString.substr(pos, eol - pos);
 
-            if (ContainsKeyword(line))
+            std::string keyword;
+            if (ContainsKeyword(line, keyword))
             {
-                if (line.find("workspace") != std::string::npos)
-                {
-                    m_WorkspaceConfig.Name = ParseSingleResponse("workspace", line);
-                    std::cout << m_WorkspaceConfig.Name << std::endl;
-                }
+                if (keyword == "workspace")
+                    m_WorkspaceConfig.Name = ParseSingleResponse(keyword.c_str(), line);
+
+                if (keyword == "version")
+                    m_WorkspaceConfig.Version = ParseSingleResponse(keyword.c_str(), line);
+
+                if (keyword == "architecture")
+                    m_WorkspaceConfig.Architecture = ParseSingleResponse(keyword.c_str(), line);
+
+                if (keyword == "flags")
+                    m_WorkspaceConfig.Flags = ParseMultipleResponse(keyword.c_str(), m_WorkspaceString);
             }
 
+            size_t nextLinePos = m_WorkspaceString.find_first_not_of("\r\n", eol);
+            size_t nextEOL = m_WorkspaceString.find_first_of("\r\n", nextLinePos);
+            if (nextLinePos != std::string::npos)
+            {
+                pos = nextLinePos;
+            }
+            else
+            {
+                break;
+            }
             
         }
     }
 
-    CMakePlatform::ProjectConfig CMakePlatform::BuildProjectConfig(int& index)
+    CMakePlatform::ProjectConfig CMakePlatform::BuildProjectConfig(std::string& strCache)
     {
+        ProjectConfig cfg;
+        size_t pos = 0;
+        while (pos != std::string::npos)
+        {
+            size_t eol = strCache.find_first_of("\r\n", pos);
+            std::string line = strCache.substr(pos, eol - pos);
 
+            std::string keyword;
+            if (ContainsKeyword(line, keyword))
+            {
+                if (keyword == "project")
+                    cfg.Name = ParseSingleResponse(keyword.c_str(), line);
+
+                if (keyword == "mainfile")
+                    cfg.MainFileDirectory= ParseSingleResponse(keyword.c_str(), line);
+
+                if (keyword == "kind")
+                    cfg.Kind = ParseSingleResponse(keyword.c_str(), line);
+
+                if (keyword == "files")
+                    cfg.Files = ParseMultipleResponse(keyword.c_str(), strCache);
+                
+                if (keyword == "includedirs")
+                    cfg.IncludeDirectories = ParseMultipleResponse(keyword.c_str(), strCache);
+
+                if (keyword == "links")
+                    cfg.Files = ParseMultipleResponse(keyword.c_str(), strCache);
+            }
+            
+            size_t nextLinePos = strCache.find_first_not_of("\r\n", eol);
+            size_t nextEOL = strCache.find_first_of("\r\n", nextLinePos);
+            if (nextLinePos != std::string::npos)
+            {
+                pos = nextLinePos;
+            }
+            else
+            {
+                break;
+            }
+            
+        }
+        return cfg;
     }
 
-    bool CMakePlatform::ContainsKeyword(std::string& line)
+    bool CMakePlatform::ContainsKeyword(std::string& line, std::string& outKeyword)
     {
         for(auto keyword : Keywords)
         {
             if (line.find(keyword) != std::string::npos)
             {
+                outKeyword = keyword;
                 return true;
             }
         }
@@ -199,11 +261,107 @@ namespace Prebuild
         std::string key(keyword);
         size_t keyLen = key.length();
         std::string res = line;
+        res.erase(remove_if(res.begin(), res.end(), isspace), res.end());
         res.erase(0, keyLen);
         res.erase(std::remove(res.begin(), res.end(), '"'), res.end());
-        res.erase(remove_if(res.begin(), res.end(), isspace), res.end());
 
         return res;
     }
+    std::vector<std::string> CMakePlatform::ParseMultipleResponse(const char* keyword, std::string& strCache)
+    {
+        size_t pos = strCache.find_first_of(keyword);
+        if (pos == std::string::npos)
+        {
+            Utils::PrintError("Syntax Error @ Flags!");
+            return {};
+        }
+        std::vector<std::string> out;
+        pos = strCache.find_first_of("{", pos);
+        while (pos != std::string::npos)
+        {
+            size_t eol = strCache.find_first_of("\r\n", pos);
+            std::string flag = strCache.substr(pos, eol - pos);
+            flag.erase(remove_if(flag.begin(), flag.end(), isspace), flag.end());
+            if (flag.find("{") != std::string::npos)
+            {
+                goto JUMP;
+            }
+                
+            if (flag.find("}") != std::string::npos)
+            {
+                return out;
+            }
 
+            if (flag.find_first_of("\"") == flag.find_last_of("\""))
+            {
+                Utils::PrintError("Syntax error ' \" '");
+                return {};
+            }
+            if (flag.find_first_of(",") != flag.find_last_of(",") || flag.find(",") == std::string::npos)
+            {
+                Utils::PrintError("Syntax error ' , '");
+                return {};
+            }
+
+            flag.erase(std::remove(flag.begin(), flag.end(), '"'), flag.end());
+            flag.erase(std::remove(flag.begin(), flag.end(), ','), flag.end());
+            out.push_back(flag);
+JUMP:
+            size_t nextLinePos = strCache.find_first_not_of("\r\n", eol);
+            if (nextLinePos == std::string::npos)
+            {
+                Utils::PrintError("Syntax error: ' } '");
+                return {};
+            }
+            pos = nextLinePos;
+        }
+        Utils::PrintError("OUT OF SCOPE!");
+        return {};
+    }
+
+    
+    void CMakePlatform::Build()
+    {
+        std::ofstream out("CMakeLists.txt");
+        if (!out.is_open())
+        {
+            Utils::PrintError("Could not generate CMakeLists.txt");
+            return;
+        }
+
+        std::stringstream ss;
+        ss << BuildWorkspace() << "\n";
+
+        for (auto& cfg : m_Projects.InlineProjects)
+        {
+            ss << BuildProject(cfg) << "\n";
+        }
+        out << ss.str();
+        out.close();
+
+        for (auto& cfg : m_Projects.ExternalProjects)
+        {
+            std::stringstream outDir;
+            outDir << cfg.Name << "/CMakeLists.txt";
+            std::ofstream out(outDir.str());
+            if (!out.is_open())
+            {
+                Utils::PrintError("Coould not generate external CMakeLists.txt");
+                return;
+            }
+            std::stringstream ss;
+            ss << BuildProject(cfg, cfg.Name) << "\n";
+            out << ss.str();
+            out.close();
+        }
+    }
+    std::string CMakePlatform::BuildWorkspace()
+    {
+        std::stringstream ss;
+        ss << "cmake_minimum_required(VERSION " << m_WorkspaceConfig.Version << ")"
+    }
+    std::string CMakePlatform::BuildProject(ProjectConfig& cfg, std::string dir)
+    {
+        return "";
+    }
 }

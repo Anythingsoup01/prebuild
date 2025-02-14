@@ -13,15 +13,15 @@ project "EXAMPLEPROJECT"
 
     files
     {
-        "EXAMPLEPROJECT/src/Core/Print.cpp"
+        "EXAMPLEPROJECT/src/Core/Print.cpp",
     }
 
     includedirs
     {
-        "EXAMPLEPROJECT/src"
+        "EXAMPLEPROJECT/src",
     }
 
     links
     {
-        "EXAMPLELIBRARY"
+        "EXAMPLELIBRARY",
     }

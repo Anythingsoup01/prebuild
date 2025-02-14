@@ -16,11 +16,16 @@ namespace Prebuild
         std::string ParseProject(size_t& pos, std::string dir = "");
 
         void BuildWorkspaceConfig();
-        ProjectConfig BuildProjectConfig(int& index);
+        ProjectConfig BuildProjectConfig(std::string& strCache);
 
-        bool ContainsKeyword(std::string& line);
+        bool ContainsKeyword(std::string& line, std::string& outString);
 
         std::string ParseSingleResponse(const char* keyword, std::string& line);
+        std::vector<std::string> ParseMultipleResponse(const char* keyword, std::string& strCache);
+
+        void Build();
+        std::string BuildWorkspace();
+        std::string BuildProject(ProjectConfig& cfg, std::string dir = "");
         
     private:
         struct WorkspaceConfig
@@ -38,7 +43,7 @@ namespace Prebuild
         {
             std::string Name;
             std::string MainFileDirectory;
-            KindType Kind;
+            std::string Kind;
 
             std::vector<std::string> Files;
             std::vector<std::string> IncludeDirectories;

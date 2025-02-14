@@ -4,10 +4,10 @@ project "EXAMPLELIBRARY"
 
     files
     {
-        "src/Core/Print.cpp"
+        "src/Core/Print.cpp",
     }
 
     includedirs
     {
-        "src"
+        "src",
     }

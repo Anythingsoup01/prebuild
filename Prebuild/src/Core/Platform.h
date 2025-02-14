@@ -18,5 +18,21 @@ namespace Prebuild
             DYNAMICLIB = 2,
             CONSOLEAPP = 3,
         };
+
+        char* Keywords[10] = 
+        {
+            // WORKSPACE
+            "workspace",
+            "version",
+            "architecture"
+            "flags",
+            // PROJECTS
+            "project",
+            "mainfile",
+            "kind",
+            "files",
+            "includedirs",
+            "links"
+        };
     };
 }

@@ -54,13 +54,12 @@ namespace Prebuild
         }
         m_PrebuildString = ss.str();
         m_WorkspaceString = ParseWorkspace(pos);
-        std::cout << m_WorkspaceString << std::endl;
-        
+        BuildWorkspaceConfig();
+        //return;
         for (int i = 0; i < inlineProjectCount; i++)
         {
             std::string str = ParseProject(pos);
             m_InlineProjectStrings.push_back(str);
-            std::cout << m_InlineProjectStrings[i] << std::endl;
         }
 
         for (int i = 0; i < externalProjectCount; i++)
@@ -68,10 +67,7 @@ namespace Prebuild
             size_t val = 0;
             std::string str = ParseProject(val, m_ExternalProjectDirs[i]);
             m_ExternalProjectStrings.push_back(str);
-            std::cout << m_ExternalProjectStrings[i] << std::endl;
         }
-
-        
     }
 
     std::string CMakePlatform::ParseWorkspace(size_t& pos)
@@ -105,11 +101,7 @@ namespace Prebuild
     std::string CMakePlatform::ParseProject(size_t& pos, std::string dir)
     {
         std::stringstream ss;
-        if (dir.empty())
-        {
-            ss << m_PrebuildString;
-        }
-        else
+        if (!dir.empty())
         {
             std::stringstream fileDir;
             fileDir << dir << "/prebuild.lua";
@@ -122,14 +114,19 @@ namespace Prebuild
             ss << in.rdbuf();
             in.close();
         }
+        else
+        {
+            ss << m_PrebuildString;
+        }
+
         std::string file = ss.str();
         std::stringstream projectStr;
+        pos = file.find_first_of("p", pos);
         while (pos != std::string::npos)
         {
             size_t eol = file.find_first_of("\r\n", pos);
             std::string subStr = file.substr(pos, eol - pos);
 
-            std::cout << subStr << std::endl;
             projectStr << subStr << std::endl;
 
             size_t nextLinePos = file.find_first_not_of("\r\n", eol);
@@ -140,13 +137,73 @@ namespace Prebuild
                 if (tmp.find("project") != std::string::npos || tmp.find("external") != std::string::npos)
                 {
                     pos = nextLinePos;
-                    std::cout << "PROJECT STRING: \n" << projectStr.str() << std::endl;
                     return projectStr.str();
                 }
+                pos = nextLinePos;
             }
-            pos = nextLinePos;
+            else
+            {
+                return projectStr.str();
+            }
 
         }
+        return "Failed to compile";
+    }
+
+    void CMakePlatform::BuildWorkspaceConfig()
+    {
+        size_t pos = m_WorkspaceString.find_first_of("workspace");
+        while (pos != std::string::npos)
+        {
+            size_t eol = m_WorkspaceString.find_first_of("\r\n", pos);
+            std::string line = m_WorkspaceString.substr(pos, eol - pos);
+
+            if (ContainsKeyword(line))
+            {
+                if (line.find("workspace") != std::string::npos)
+                {
+                    m_WorkspaceConfig.Name = ParseSingleResponse("workspace", line);
+                    std::cout << m_WorkspaceConfig.Name << std::endl;
+                }
+            }
+
+            
+        }
+    }
+
+    CMakePlatform::ProjectConfig CMakePlatform::BuildProjectConfig(int& index)
+    {
+
+    }
+
+    bool CMakePlatform::ContainsKeyword(std::string& line)
+    {
+        for(auto keyword : Keywords)
+        {
+            if (line.find(keyword) != std::string::npos)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    std::string CMakePlatform::ParseSingleResponse(const char* keyword, std::string& line)
+    {
+        if (line.find(keyword) == std::string::npos)
+        {
+            Utils::PrintError("KEYWORD DOESN'T MATCH!");
+            return "";
+        }
+
+        std::string key(keyword);
+        size_t keyLen = key.length();
+        std::string res = line;
+        res.erase(0, keyLen);
+        res.erase(std::remove(res.begin(), res.end(), '"'), res.end());
+        res.erase(remove_if(res.begin(), res.end(), isspace), res.end());
+
+        return res;
     }
 
 }

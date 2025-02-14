@@ -9,10 +9,19 @@ namespace Prebuild
 {
     class CMakePlatform : public Platform
     {
+        struct ProjectConfig;
     public:
         CMakePlatform();
         std::string ParseWorkspace(size_t& pos);
         std::string ParseProject(size_t& pos, std::string dir = "");
+
+        void BuildWorkspaceConfig();
+        ProjectConfig BuildProjectConfig(int& index);
+
+        bool ContainsKeyword(std::string& line);
+
+        std::string ParseSingleResponse(const char* keyword, std::string& line);
+        
     private:
         struct WorkspaceConfig
         {
@@ -35,7 +44,6 @@ namespace Prebuild
             std::vector<std::string> IncludeDirectories;
             std::vector<std::string> Links;
         };
-
         struct Projects
         {
             std::vector<ProjectConfig> InlineProjects;

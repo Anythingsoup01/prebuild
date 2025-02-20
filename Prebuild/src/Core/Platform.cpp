@@ -10,5 +10,7 @@ namespace Prebuild
         {
             return CreateScope<CMakePlatform>();
         }
+
+        return nullptr;
     }
 }

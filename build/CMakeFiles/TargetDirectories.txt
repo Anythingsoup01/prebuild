@@ -1,3 +1,0 @@
-/workspaces/prebuild/build/CMakeFiles/rebuild_cache.dir
-/workspaces/prebuild/build/CMakeFiles/edit_cache.dir
-/workspaces/prebuild/build/CMakeFiles/prebuild.dir

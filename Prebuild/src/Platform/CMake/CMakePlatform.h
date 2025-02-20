@@ -5,6 +5,7 @@
 #include <vector>
 #include <unordered_map>
 
+
 namespace Prebuild
 {
     class CMakePlatform : public Platform
@@ -18,14 +19,17 @@ namespace Prebuild
         void BuildWorkspaceConfig();
         ProjectConfig BuildProjectConfig(std::string& strCache);
 
-        bool ContainsKeyword(std::string& line, std::string& outString);
+        bool ContainsKeyword(std::string& line, std::string& outKeyword);
+        bool ContainsPathKeyword(std::string& line, std::string& outKeyword);
+
+        std::string GetCMakeSyntax(std::string& keyword);
 
         std::string ParseSingleResponse(const char* keyword, std::string& line);
         std::vector<std::string> ParseMultipleResponse(const char* keyword, std::string& strCache);
 
         void Build();
         std::string BuildWorkspace();
-        std::string BuildProject(ProjectConfig& cfg, std::string dir = "");
+        std::string BuildProject(ProjectConfig& cfg);
         
     private:
         struct WorkspaceConfig

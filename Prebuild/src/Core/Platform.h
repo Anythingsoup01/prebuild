@@ -34,5 +34,10 @@ namespace Prebuild
             "includedirs",
             "links"
         };
+
+        const char* PathKeywords[1] = 
+        {
+            "$(ROOTDIR)",
+        };
     };
 }

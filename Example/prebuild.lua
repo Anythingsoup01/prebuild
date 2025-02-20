@@ -9,22 +9,5 @@ workspace "Example"
     }
 
 external("EXAMPLELIBRARY")
+external("EXAMPLEPROJECT")
 
-project "EXAMPLEPROJECT"
-    mainfile "EXAMPLEPROJECT/src/main.cpp"
-    kind "ConsoleApp"
-
-    files
-    {
-        "EXAMPLEPROJECT/src/Core/Print.cpp",
-    }
-
-    includedirs
-    {
-        "EXAMPLEPROJECT/src",
-    }
-
-    links
-    {
-        "EXAMPLELIBRARY",
-    }

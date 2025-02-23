@@ -3,7 +3,6 @@
 
 #include <string>
 #include <vector>
-#include <unordered_map>
 
 
 namespace Prebuild
@@ -25,7 +24,7 @@ namespace Prebuild
         std::string GetCMakeSyntax(std::string& keyword);
 
         std::string ParseSingleResponse(const char* keyword, std::string& line);
-        std::vector<std::string> ParseMultipleResponse(const char* keyword, std::string& strCache);
+        std::vector<std::string> ParseMultipleResponse(const char* keyword, std::string& strCache, size_t& pos);
 
         void Build();
         std::string BuildWorkspace();

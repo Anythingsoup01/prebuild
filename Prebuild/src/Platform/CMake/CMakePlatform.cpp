@@ -71,6 +71,8 @@ namespace Prebuild
             m_Projects.ExternalProjects.push_back(cfg);
         }
 
+        Build();
+
     }
 
     std::string CMakePlatform::ParseWorkspace(size_t& pos)
@@ -174,7 +176,7 @@ namespace Prebuild
                     m_WorkspaceConfig.Architecture = ParseSingleResponse(keyword.c_str(), line);
 
                 if (keyword == "flags")
-                    m_WorkspaceConfig.Flags = ParseMultipleResponse(keyword.c_str(), m_WorkspaceString);
+                    m_WorkspaceConfig.Flags = ParseMultipleResponse(keyword.c_str(), m_WorkspaceString, pos);
             }
 
             size_t nextLinePos = m_WorkspaceString.find_first_not_of("\r\n", eol);
@@ -206,20 +208,21 @@ namespace Prebuild
                 if (keyword == "project")
                     cfg.Name = ParseSingleResponse(keyword.c_str(), line);
 
-                if (keyword == "mainfile")
+                else if (keyword == "mainfile")
                     cfg.MainFileDirectory= ParseSingleResponse(keyword.c_str(), line);
 
-                if (keyword == "kind")
+                else if (keyword == "kind")
                     cfg.Kind = ParseSingleResponse(keyword.c_str(), line);
 
-                if (keyword == "files")
-                    cfg.Files = ParseMultipleResponse(keyword.c_str(), strCache);
+                else if (keyword == "files")
+                    cfg.Files = ParseMultipleResponse(keyword.c_str(), strCache, pos);
                 
-                if (keyword == "includedirs")
-                    cfg.IncludeDirectories = ParseMultipleResponse(keyword.c_str(), strCache);
+                else if (keyword == "includedirs")
+                    cfg.IncludeDirectories = ParseMultipleResponse(keyword.c_str(), strCache, pos);
 
-                if (keyword == "links")
-                    cfg.Files = ParseMultipleResponse(keyword.c_str(), strCache);
+                else if (keyword == "links")
+                    cfg.Links = ParseMultipleResponse(keyword.c_str(), strCache, pos);
+
             }
             
             size_t nextLinePos = strCache.find_first_not_of("\r\n", eol);
@@ -250,6 +253,26 @@ namespace Prebuild
         return false;
     }
 
+    bool CMakePlatform::ContainsPathKeyword(std::string& line, std::string& outKeyword)
+    {
+        for(auto keyword : PathKeywords)
+        {
+            if (line.find(keyword) != std::string::npos)
+            {
+                outKeyword = keyword;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    std::string CMakePlatform::GetCMakeSyntax(std::string& keyword)
+    {
+        if (keyword == "$(ROOTDIR)")
+            return "${CMAKE_SOURCE_DIR}";
+        return "";
+    }
+
     std::string CMakePlatform::ParseSingleResponse(const char* keyword, std::string& line)
     {
         if (line.find(keyword) == std::string::npos)
@@ -267,45 +290,47 @@ namespace Prebuild
 
         return res;
     }
-    std::vector<std::string> CMakePlatform::ParseMultipleResponse(const char* keyword, std::string& strCache)
+    std::vector<std::string> CMakePlatform::ParseMultipleResponse(const char* keyword, std::string& strCache, size_t& pos)
     {
-        size_t pos = strCache.find_first_of(keyword);
-        if (pos == std::string::npos)
+        size_t linePos = strCache.find_first_of(keyword, pos);
+        if (linePos == std::string::npos)
         {
-            Utils::PrintError("Syntax Error @ Flags!");
+            std::stringstream ss;
+            ss << "Syntax error - '" << keyword << "'";
+            Utils::PrintError(ss.str().c_str());
             return {};
         }
         std::vector<std::string> out;
-        pos = strCache.find_first_of("{", pos);
-        while (pos != std::string::npos)
+        linePos = strCache.find_first_of("{", linePos);
+        while (linePos != std::string::npos)
         {
-            size_t eol = strCache.find_first_of("\r\n", pos);
-            std::string flag = strCache.substr(pos, eol - pos);
-            flag.erase(remove_if(flag.begin(), flag.end(), isspace), flag.end());
-            if (flag.find("{") != std::string::npos)
+            size_t eol = strCache.find_first_of("\r\n", linePos);
+            std::string str = strCache.substr(linePos, eol - linePos);
+            str.erase(remove_if(str.begin(), str.end(), isspace), str.end());
+            if (str.find("{") != std::string::npos)
             {
                 goto JUMP;
             }
                 
-            if (flag.find("}") != std::string::npos)
+            if (str.find("}") != std::string::npos)
             {
                 return out;
             }
 
-            if (flag.find_first_of("\"") == flag.find_last_of("\""))
+            if (str.find_first_of("\"") == str.find_last_of("\""))
             {
                 Utils::PrintError("Syntax error ' \" '");
                 return {};
             }
-            if (flag.find_first_of(",") != flag.find_last_of(",") || flag.find(",") == std::string::npos)
+            if (str.find_first_of(",") != str.find_last_of(",") || str.find(",") == std::string::npos)
             {
                 Utils::PrintError("Syntax error ' , '");
                 return {};
             }
 
-            flag.erase(std::remove(flag.begin(), flag.end(), '"'), flag.end());
-            flag.erase(std::remove(flag.begin(), flag.end(), ','), flag.end());
-            out.push_back(flag);
+            str.erase(std::remove(str.begin(), str.end(), '"'), str.end());
+            str.erase(std::remove(str.begin(), str.end(), ','), str.end());
+            out.push_back(str);
 JUMP:
             size_t nextLinePos = strCache.find_first_not_of("\r\n", eol);
             if (nextLinePos == std::string::npos)
@@ -313,7 +338,7 @@ JUMP:
                 Utils::PrintError("Syntax error: ' } '");
                 return {};
             }
-            pos = nextLinePos;
+            linePos = nextLinePos;
         }
         Utils::PrintError("OUT OF SCOPE!");
         return {};
@@ -336,11 +361,10 @@ JUMP:
         {
             ss << BuildProject(cfg) << "\n";
         }
-        out << ss.str();
-        out.close();
 
         for (auto& cfg : m_Projects.ExternalProjects)
         {
+            ss << "add_subdirectory(" << cfg.Name << ")\n";
             std::stringstream outDir;
             outDir << cfg.Name << "/CMakeLists.txt";
             std::ofstream out(outDir.str());
@@ -350,18 +374,95 @@ JUMP:
                 return;
             }
             std::stringstream ss;
-            ss << BuildProject(cfg, cfg.Name) << "\n";
+            ss << BuildProject(cfg) << "\n";
             out << ss.str();
             out.close();
         }
+        out << ss.str();
+        out.close();
     }
     std::string CMakePlatform::BuildWorkspace()
     {
         std::stringstream ss;
-        ss << "cmake_minimum_required(VERSION " << m_WorkspaceConfig.Version << ")"
+        ss << "cmake_minimum_required(VERSION " << m_WorkspaceConfig.Version << ")\n\n"
+           << "set(CMAKE_EXPORT_COMPILE_COMMANDS ON)\n"
+           << "project(" << m_WorkspaceConfig.Name << ")\n\n";
+        return ss.str();
     }
-    std::string CMakePlatform::BuildProject(ProjectConfig& cfg, std::string dir)
+    std::string CMakePlatform::BuildProject(ProjectConfig& cfg)
     {
-        return "";
+        std::stringstream ss;
+
+        if (!cfg.Files.empty())
+        {
+            ss << "set(SRCS\n";
+            for (auto& src : cfg.Files)
+            {
+                std::string keyword;
+                if (ContainsPathKeyword(src, keyword))
+                {
+                    std::string out = src;
+                    out.erase(0, keyword.length());
+                    ss << "    " << GetCMakeSyntax(keyword) << out << std::endl;
+                }
+                else
+                {
+                    ss << "    " << src << std::endl;
+                }
+            }
+
+            ss << ")\n\n";
+        }
+
+        if (cfg.Kind == "StaticLib")
+        {
+            ss << "add_library(" << cfg.Name << " STATIC " << cfg.MainFileDirectory << " ${SRCS})\n\n";
+        }
+        else if (cfg.Kind == "SharedLib")
+        {
+            ss << "add_library(" << cfg.Name << " SHARED " << cfg.MainFileDirectory << " ${SRCS})\n\n";
+        }
+        else if (cfg.Kind == "ConsoleApp")
+        {
+            ss << "add_executable(" << cfg.Name << " " << cfg.MainFileDirectory << " ${SRCS})\n\n";
+        }
+        else
+        {
+            Utils::PrintError("Syntax error - 'Kind'");
+            return "";
+        }
+
+        if (!cfg.IncludeDirectories.empty())
+        {
+            ss << "target_include_directories(" << cfg.Name <<  " PRIVATE\n";
+            for (auto& dir : cfg.IncludeDirectories)
+            {
+                std::string keyword;
+                if (ContainsPathKeyword(dir, keyword))
+                {
+                    std::string out = dir;
+                    out.erase(0, keyword.length());
+                    ss << "    " << GetCMakeSyntax(keyword) << out << std::endl;
+                }
+                else
+                {
+                    ss << "    " << dir << std::endl;
+                }
+            }
+
+            ss << ")\n\n";
+        }
+
+        if (!cfg.Links.empty())
+        {
+            ss << "target_link_libraries(" << cfg.Name << std::endl;
+            for (auto& link : cfg.Links)
+            {
+                ss << "    " << link << std::endl;
+            }
+            ss << ")\n\n";
+        }
+
+        return ss.str();
     }
 }

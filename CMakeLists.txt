@@ -5,6 +5,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 project(Prebuild)
 
 set(Files
+Prebuild/src/Core/Utils.cpp
 Prebuild/src/Core/Platform.cpp
 Prebuild/src/Platform/CMake/CMakePlatform.cpp
 )

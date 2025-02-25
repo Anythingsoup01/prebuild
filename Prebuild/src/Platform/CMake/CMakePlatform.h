@@ -43,7 +43,9 @@ namespace Prebuild
     private:
 
         std::string ParseWorkspace(size_t& outPos);
+        std::string ParseProject(size_t& outPos, std::string dir = "");
 
+        ProjectType CheckProjectType(const std::string& line);
 
         // Utility
         bool CheckSyntax(const std::string& strCache);
@@ -53,5 +55,10 @@ namespace Prebuild
     private:
         std::string m_RootPrebuildString;
         std::string m_WorkspaceString;
+        std::vector<std::string> m_InlineProjectStrings;
+        std::unordered_map<std::string, std::string> m_ExternalProjectStrings;
+
+        Projects m_Projects;
+
     };
 }

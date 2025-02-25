@@ -15,6 +15,13 @@ namespace Prebuild
 
         const size_t NPOS = std::string::npos;
 
+        enum ProjectType
+        {
+            pNONE    = 0,
+            INLINE   = 1,
+            EXTERNAL = 2,
+        };
+
         enum KindType
         {
             kNONE      = 0,

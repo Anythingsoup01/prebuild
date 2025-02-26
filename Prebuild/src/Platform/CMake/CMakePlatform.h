@@ -71,6 +71,7 @@ namespace Prebuild
         std::string m_Version;
         std::string m_RootPrebuildString;
         std::string m_WorkspaceString;
+        std::vector<std::string> m_NonPrebuildProject;
         std::vector<std::string> m_InlineProjectStrings;
         std::unordered_map<std::string, std::string> m_ExternalProjectStrings;
 

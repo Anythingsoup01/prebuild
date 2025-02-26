@@ -1,203 +1,229 @@
 #include "CMakePlatform.h"
+#include "Core/Platform.h"
+#include "Core/Utils.h"
 
-#include <iostream>
-#include <fstream>
 #include <sstream>
-#include <string>
+#include <fstream>
+#include <iostream>
 #include <algorithm>
+#include <string>
 
-namespace Utils
-{
-    void PrintError(const char* msg)
-    {
-        printf("ERROR: %s\n", msg);
-    }
-}
+#define PB_PRINT(x) //printf("FUNCTION - %s\n", x)
 
 namespace Prebuild
 {
-    CMakePlatform::CMakePlatform()
+
+    CMakePlatform::CMakePlatform(const std::string& version)
     {
-        std::ifstream in("prebuild.lua");
-        if (!in.is_open())
+        PB_PRINT("Constructor");
+        m_Version = version;
+        m_RootPrebuildString = Utils::GetStringFromFile("prebuild.lua");
+        if (m_RootPrebuildString.empty())
         {
-            Utils::PrintError("Could not open prebuild!");
+            Utils::PrintError("Could not open/find root prebuild file!");
             return;
         }
-
-        std::stringstream ss;
-        ss << in.rdbuf();
-        in.close();
-
-        int inlineProjectCount = 0;
-        int externalProjectCount = 0;
-
+        if (!CheckSyntax(m_RootPrebuildString))
+        {
+            return;
+        }
         size_t pos = 0;
-
-        std::string line;
-        while(getline(ss, line))
-        {
-            if (line.find("project") != std::string::npos)
-            {
-                if (line.find("startproject") == std::string::npos)
-                    inlineProjectCount++;
-            }
-            else if (line.find("external") != std::string::npos)
-            {
-                externalProjectCount++;
-                std::string dir = line;
-                dir.erase(0, 9);
-                dir.erase(std::remove(dir.begin(), dir.end(), '"'), dir.end());
-                dir.erase(std::remove(dir.begin(), dir.end(), ')'), dir.end());
-                m_ExternalProjectDirs.push_back(dir);
-            }
-        }
-        m_PrebuildString = ss.str();
         m_WorkspaceString = ParseWorkspace(pos);
+        if (m_WorkspaceString.empty())
+        {
+            return;
+        }
         BuildWorkspaceConfig();
-        //return;
-        for (int i = 0; i < inlineProjectCount; i++)
-        {
-            std::string str = ParseProject(pos);
-            ProjectConfig cfg = BuildProjectConfig(str);
-            m_Projects.InlineProjects.push_back(cfg);
-        }
 
-        for (int i = 0; i < externalProjectCount; i++)
+        while (pos != NPOS)
         {
-            size_t val = 0;
-            std::string str = ParseProject(val, m_ExternalProjectDirs[i]);
-            ProjectConfig cfg = BuildProjectConfig(str);
-            m_Projects.ExternalProjects.push_back(cfg);
-        }
+            size_t eol = m_RootPrebuildString.find_first_of("\r\n", pos);
+            std::string line = m_RootPrebuildString.substr(pos, eol - pos);
+            ProjectType res = CheckProjectType(line);
 
+            switch (res)
+            {
+                case ProjectType::INLINE:
+                {
+                    std::string projStr = ParseProject(pos, std::string());
+                    if (projStr.empty())
+                    {
+                        return;
+                    }
+                    ProjectConfig cfg = BuildProjectConfig(projStr);
+                    m_Projects.InlineProjects.push_back(cfg);
+                    break;
+                }
+                case ProjectType::EXTERNAL:
+                {
+                    std::string dir = line;
+
+                    dir.erase(remove_if(dir.begin(), dir.end(), isspace), dir.end());
+                    dir.erase(std::remove(dir.begin(), dir.end(), '\"'), dir.end());
+                    dir.erase(0, 8);
+
+                    std::string projStr = ParseProject(pos, dir);
+                    if (projStr.empty())
+                    {
+                        return;
+                    }
+
+                    if(!CheckSyntax(projStr))
+                    {
+                        return;
+                    }
+
+                    ProjectConfig cfg = BuildProjectConfig(projStr);
+                    m_Projects.ExternalProjects.emplace(dir, cfg);
+                    break;
+                }
+                default:
+                {
+                    break;
+                }
+            }
+            pos = m_RootPrebuildString.find_first_not_of("\r\n", eol);
+        }
         Build();
 
     }
 
-    std::string CMakePlatform::ParseWorkspace(size_t& pos)
+    // PARSING FILES ------------------------------------------------------------------------------------
+
+    std::string CMakePlatform::ParseWorkspace(size_t& outPos)
     {
-        std::string file = m_PrebuildString;
-        std::stringstream workspaceStr;
-        while (pos != std::string::npos)
+        PB_PRINT("ParseWorkspace");
+        std::string file = m_RootPrebuildString;
+        std::stringstream out;
+        size_t pos = file.find_first_of("workspace", outPos);
+        while (pos != NPOS)
         {
             size_t eol = file.find_first_of("\r\n", pos);
-            std::string subStr = file.substr(pos, eol - pos);
+            std::string line = file.substr(pos, eol - pos);
 
-            workspaceStr << subStr << std::endl;
+            out << line << std::endl;
 
             size_t nextLinePos = file.find_first_not_of("\r\n", eol);
-            size_t nextEOL = file.find_first_of("\r\n", nextLinePos);
-            if (nextLinePos != std::string::npos)
+            if (nextLinePos != NPOS)
             {
-                std::string tmp = file.substr(nextLinePos, nextEOL - nextLinePos);
-                if (tmp.find("project") != std::string::npos || tmp.find("external") != std::string::npos)
+                size_t nextEOL = file.find_first_of("\r\n", nextLinePos);
+                std::string nextLine = file.substr(nextLinePos, nextEOL - nextLinePos);
+
+                if (nextLine.find("project") != NPOS || nextLine.find("external") != NPOS)
                 {
-                    pos = nextLinePos;
-                    return workspaceStr.str();
+                    outPos = nextLinePos;
+                    break;
                 }
             }
+            else
+            {
+                Utils::PrintError("No projects found!");
+                return std::string();
+            }
             pos = nextLinePos;
-
         }
-        return "";
+        return out.str();
     }
 
-    std::string CMakePlatform::ParseProject(size_t& pos, std::string dir)
+    std::string CMakePlatform::ParseProject(size_t& outPos, std::string dir)
     {
         std::stringstream ss;
         if (!dir.empty())
         {
-            std::stringstream fileDir;
-            fileDir << dir << "/prebuild.lua";
-            std::ifstream in(fileDir.str());
+            std::stringstream dirss;
+            dirss << dir << "/prebuild.lua";
+            std::ifstream in(dirss.str());
             if (!in.is_open())
             {
-                Utils::PrintError("Could not open prebuild!");
-                return "";
+                std::stringstream oss;
+                oss << "Could not open prebuild file at - " << dir;
+                Utils::PrintError(oss);
+                return std::string();
             }
             ss << in.rdbuf();
             in.close();
+
+            size_t eol = m_RootPrebuildString.find_first_of("\r\n", outPos);
+            outPos = m_RootPrebuildString.find_first_not_of("\r\n", eol);
+
+            return ss.str();
         }
-        else
+
+        size_t pos = outPos;
+        while (pos != NPOS)
         {
-            ss << m_PrebuildString;
-        }
+            size_t eol = m_RootPrebuildString.find_first_of("\r\n", pos);
+            std::string line = m_RootPrebuildString.substr(pos, eol - pos);
 
-        std::string file = ss.str();
-        std::stringstream projectStr;
-        pos = file.find_first_of("p", pos);
-        while (pos != std::string::npos)
-        {
-            size_t eol = file.find_first_of("\r\n", pos);
-            std::string subStr = file.substr(pos, eol - pos);
+            ss << line << std::endl;
 
-            projectStr << subStr << std::endl;
-
-            size_t nextLinePos = file.find_first_not_of("\r\n", eol);
-            size_t nextEOL = file.find_first_of("\r\n", nextLinePos);
-            if (nextLinePos != std::string::npos)
+            size_t nextLinePos = m_RootPrebuildString.find_first_not_of("\r\n", eol);
+            if (nextLinePos != NPOS)
             {
-                std::string tmp = file.substr(nextLinePos, nextEOL - nextLinePos);
-                if (tmp.find("project") != std::string::npos || tmp.find("external") != std::string::npos)
+                size_t nextEOL = m_RootPrebuildString.find_first_of("\r\n", nextLinePos);
+                std::string nextLine = m_RootPrebuildString.substr(nextLinePos, nextEOL - nextLinePos);
+                if (nextLine.find("project") != NPOS || nextLine.find("external") != NPOS)
                 {
-                    pos = nextLinePos;
-                    return projectStr.str();
+                    outPos = nextLinePos;
+                    break;
                 }
                 pos = nextLinePos;
             }
             else
-            {
-                return projectStr.str();
-            }
-
+                break;
         }
-        return "Failed to compile";
+
+        return ss.str();
     }
+
+    // BUILDING CONFIGS ------------------------------------------------------------------------------------
 
     void CMakePlatform::BuildWorkspaceConfig()
     {
+        std::string file = m_WorkspaceString;
         size_t pos = 0;
-        while (pos != std::string::npos)
+        WorkspaceConfig cfg;
+
+        while (pos != NPOS)
         {
-            size_t eol = m_WorkspaceString.find_first_of("\r\n", pos);
-            std::string line = m_WorkspaceString.substr(pos, eol - pos);
+            size_t eol = file.find_first_of("\r\n", pos);
+            std::string line = file.substr(pos, eol - pos);
 
             std::string keyword;
             if (ContainsKeyword(line, keyword))
             {
                 if (keyword == "workspace")
-                    m_WorkspaceConfig.Name = ParseSingleResponse(keyword.c_str(), line);
-
-                if (keyword == "version")
-                    m_WorkspaceConfig.Version = ParseSingleResponse(keyword.c_str(), line);
-
+                    cfg.Name = ParseField(line, keyword);
                 if (keyword == "architecture")
-                    m_WorkspaceConfig.Architecture = ParseSingleResponse(keyword.c_str(), line);
-
-                if (keyword == "flags")
-                    m_WorkspaceConfig.Flags = ParseMultipleResponse(keyword.c_str(), m_WorkspaceString, pos);
+                    cfg.Architecture = StringToArchitectureType(ParseField(line, keyword));
+                if (keyword == "configurations")
+                {
+                    if (IsSetForMultipleParameters(file, pos))
+                        cfg.Configurations = ParseMultipleFields(file, pos, keyword);
+                    else
+ ;                      cfg.Configurations.push_back(ParseField(line, keyword));
+                }
+                if (keyword == "defines")
+                {
+                    if (IsSetForMultipleParameters(file, pos))
+                        cfg.Defines = ParseMultipleFields(file, pos, keyword);
+                    else
+                        cfg.Defines.push_back(ParseField(line, keyword));
+                }
             }
 
-            size_t nextLinePos = m_WorkspaceString.find_first_not_of("\r\n", eol);
-            size_t nextEOL = m_WorkspaceString.find_first_of("\r\n", nextLinePos);
-            if (nextLinePos != std::string::npos)
-            {
-                pos = nextLinePos;
-            }
-            else
-            {
+            pos = file.find_first_not_of("\r\n", eol);
+            if (pos == NPOS)
                 break;
-            }
-            
         }
+        m_WorkspaceConfig = cfg;
     }
 
-    CMakePlatform::ProjectConfig CMakePlatform::BuildProjectConfig(std::string& strCache)
+    CMakePlatform::ProjectConfig CMakePlatform::BuildProjectConfig(const std::string& strCache)
     {
         ProjectConfig cfg;
         size_t pos = 0;
-        while (pos != std::string::npos)
+        while (pos != NPOS)
         {
             size_t eol = strCache.find_first_of("\r\n", pos);
             std::string line = strCache.substr(pos, eol - pos);
@@ -206,263 +232,452 @@ namespace Prebuild
             if (ContainsKeyword(line, keyword))
             {
                 if (keyword == "project")
-                    cfg.Name = ParseSingleResponse(keyword.c_str(), line);
-
-                else if (keyword == "mainfile")
-                    cfg.MainFileDirectory= ParseSingleResponse(keyword.c_str(), line);
-
-                else if (keyword == "kind")
-                    cfg.Kind = ParseSingleResponse(keyword.c_str(), line);
-
-                else if (keyword == "files")
-                    cfg.Files = ParseMultipleResponse(keyword.c_str(), strCache, pos);
-                
-                else if (keyword == "includedirs")
-                    cfg.IncludeDirectories = ParseMultipleResponse(keyword.c_str(), strCache, pos);
-
-                else if (keyword == "links")
-                    cfg.Links = ParseMultipleResponse(keyword.c_str(), strCache, pos);
-
+                    cfg.Name = ParseField(line, keyword);
+                if (keyword == "language")
+                    cfg.Language = StringToLanguageType(ParseField(line, keyword));
+                if (keyword == "dialect")
+                    cfg.Dialect = ParseField(line, keyword);
+                if (keyword == "kind")
+                    cfg.Kind = StringToKindType(ParseField(line, keyword));
+                if (keyword == "includedirs")
+                    cfg.IncludedDirectories = ParseMultipleFields(strCache, pos, keyword);
+                if (keyword == "files")
+                    cfg.Files = ParseMultipleFields(strCache, pos, keyword);
             }
-            
-            size_t nextLinePos = strCache.find_first_not_of("\r\n", eol);
-            size_t nextEOL = strCache.find_first_of("\r\n", nextLinePos);
-            if (nextLinePos != std::string::npos)
-            {
-                pos = nextLinePos;
-            }
-            else
-            {
+
+            pos = strCache.find_first_not_of("\r\n", eol);
+            if (pos == NPOS)
                 break;
-            }
-            
         }
         return cfg;
     }
 
-    bool CMakePlatform::ContainsKeyword(std::string& line, std::string& outKeyword)
-    {
-        for(auto keyword : Keywords)
-        {
-            if (line.find(keyword) != std::string::npos)
-            {
-                outKeyword = keyword;
-                return true;
-            }
-        }
-        return false;
-    }
 
-    bool CMakePlatform::ContainsPathKeyword(std::string& line, std::string& outKeyword)
-    {
-        for(auto keyword : PathKeywords)
-        {
-            if (line.find(keyword) != std::string::npos)
-            {
-                outKeyword = keyword;
-                return true;
-            }
-        }
-        return false;
-    }
+    // BUILDING CMAKELISTS -----------------------------------------------------------------------
 
-    std::string CMakePlatform::GetCMakeSyntax(std::string& keyword)
-    {
-        if (keyword == "$(ROOTDIR)")
-            return "${CMAKE_SOURCE_DIR}";
-        return "";
-    }
-
-    std::string CMakePlatform::ParseSingleResponse(const char* keyword, std::string& line)
-    {
-        if (line.find(keyword) == std::string::npos)
-        {
-            Utils::PrintError("KEYWORD DOESN'T MATCH!");
-            return "";
-        }
-
-        std::string key(keyword);
-        size_t keyLen = key.length();
-        std::string res = line;
-        res.erase(remove_if(res.begin(), res.end(), isspace), res.end());
-        res.erase(0, keyLen);
-        res.erase(std::remove(res.begin(), res.end(), '"'), res.end());
-
-        return res;
-    }
-    std::vector<std::string> CMakePlatform::ParseMultipleResponse(const char* keyword, std::string& strCache, size_t& pos)
-    {
-        size_t linePos = strCache.find_first_of(keyword, pos);
-        if (linePos == std::string::npos)
-        {
-            std::stringstream ss;
-            ss << "Syntax error - '" << keyword << "'";
-            Utils::PrintError(ss.str().c_str());
-            return {};
-        }
-        std::vector<std::string> out;
-        linePos = strCache.find_first_of("{", linePos);
-        while (linePos != std::string::npos)
-        {
-            size_t eol = strCache.find_first_of("\r\n", linePos);
-            std::string str = strCache.substr(linePos, eol - linePos);
-            str.erase(remove_if(str.begin(), str.end(), isspace), str.end());
-            if (str.find("{") != std::string::npos)
-            {
-                goto JUMP;
-            }
-                
-            if (str.find("}") != std::string::npos)
-            {
-                return out;
-            }
-
-            if (str.find_first_of("\"") == str.find_last_of("\""))
-            {
-                Utils::PrintError("Syntax error ' \" '");
-                return {};
-            }
-            if (str.find_first_of(",") != str.find_last_of(",") || str.find(",") == std::string::npos)
-            {
-                Utils::PrintError("Syntax error ' , '");
-                return {};
-            }
-
-            str.erase(std::remove(str.begin(), str.end(), '"'), str.end());
-            str.erase(std::remove(str.begin(), str.end(), ','), str.end());
-            out.push_back(str);
-JUMP:
-            size_t nextLinePos = strCache.find_first_not_of("\r\n", eol);
-            if (nextLinePos == std::string::npos)
-            {
-                Utils::PrintError("Syntax error: ' } '");
-                return {};
-            }
-            linePos = nextLinePos;
-        }
-        Utils::PrintError("OUT OF SCOPE!");
-        return {};
-    }
-
-    
     void CMakePlatform::Build()
     {
-        std::ofstream out("CMakeLists.txt");
-        if (!out.is_open())
-        {
-            Utils::PrintError("Could not generate CMakeLists.txt");
-            return;
-        }
-
         std::stringstream ss;
-        ss << BuildWorkspace() << "\n";
+
+        bool containsC = false;
+        bool containsCXX = false;
 
         for (auto& cfg : m_Projects.InlineProjects)
         {
-            ss << BuildProject(cfg) << "\n";
+            if (cfg.Language == LanguageType::C)
+                containsC = true;
+            if (cfg.Language == LanguageType::CXX)
+                containsCXX = true;
         }
 
-        for (auto& cfg : m_Projects.ExternalProjects)
+        for (auto& [dir, cfg] : m_Projects.ExternalProjects)
         {
-            ss << "add_subdirectory(" << cfg.Name << ")\n";
-            std::stringstream outDir;
-            outDir << cfg.Name << "/CMakeLists.txt";
-            std::ofstream out(outDir.str());
+            if (cfg.Language == LanguageType::C)
+                containsC = true;
+            if (cfg.Language == LanguageType::CXX)
+                containsCXX = true;
+        }
+        std::stringstream lss;
+        if (containsC)
+            lss << " C";
+        if (containsCXX)
+            lss << " CXX";
+
+        ss << "cmake_minimum_required(VERSION " << m_Version << ")\n"
+           << "set(CMAKE_EXPORT_COMPILE_COMMANDS ON)\n"
+           << "project(" << m_WorkspaceConfig.Name << " LANGUAGES" << lss.str() << ")\n"
+           << "set(GDEFINES\n";
+           for (auto& def : m_WorkspaceConfig.Defines)
+               ss << "    " << def << std::endl;
+
+        ss << ")\n\n";
+
+        for (auto& cfg :m_Projects.InlineProjects)
+            ss << BuildProject(cfg);
+
+        for (auto& [dir, cfg] : m_Projects.ExternalProjects)
+        {
+            ss << "add_subdirectory(" << dir << ")\n";
+
+            std::stringstream ess;
+            ess << BuildProject(cfg);
+
+            std::stringstream dirStr;
+            dirStr << dir << "/CMakeLists.txt";
+
+            std::ofstream out(dirStr.str());
             if (!out.is_open())
             {
-                Utils::PrintError("Coould not generate external CMakeLists.txt");
-                return;
+                std::stringstream err;
+                err << "Could not generate - " << dirStr.str();
+                Utils::PrintWarning(err);
             }
-            std::stringstream ss;
-            ss << BuildProject(cfg) << "\n";
-            out << ss.str();
+            out << ess.str();
             out.close();
+        }
+
+        std::ofstream out("CMakeLists.txt");
+        if (!out.is_open())
+        {
+            std::stringstream err;
+            Utils::PrintWarning("Could not generate root CMakeLists.txt");
+            return;
         }
         out << ss.str();
         out.close();
+
     }
-    std::string CMakePlatform::BuildWorkspace()
-    {
-        std::stringstream ss;
-        ss << "cmake_minimum_required(VERSION " << m_WorkspaceConfig.Version << ")\n\n"
-           << "set(CMAKE_EXPORT_COMPILE_COMMANDS ON)\n"
-           << "project(" << m_WorkspaceConfig.Name << ")\n\n";
-        return ss.str();
-    }
+
     std::string CMakePlatform::BuildProject(ProjectConfig& cfg)
     {
         std::stringstream ss;
 
-        if (!cfg.Files.empty())
+        ss << "set(SRCS\n";
+
+        for (auto& src : cfg.Files)
         {
-            ss << "set(SRCS\n";
-            for (auto& src : cfg.Files)
+            ss << "    " << src <<  std::endl;
+        }
+
+        ss << ")\n";
+
+        switch (cfg.Kind)
+        {
+            case KindType::STATICLIB:
             {
-                std::string keyword;
-                if (ContainsPathKeyword(src, keyword))
-                {
-                    std::string out = src;
-                    out.erase(0, keyword.length());
-                    ss << "    " << GetCMakeSyntax(keyword) << out << std::endl;
-                }
-                else
-                {
-                    ss << "    " << src << std::endl;
-                }
+                ss << "add_library(" << cfg.Name << " STATIC ${SRCS})\n";
+                break;
+            }
+            case KindType::SHAREDLIB:
+            {
+                ss << "add_library(" << cfg.Name << " SHARED ${SRCS})\n";
+                break;
+            }
+            case KindType::CONSOLEAPP:
+            {
+                ss << "add_executable(" << cfg.Name << " ${SRCS})\n";
+                break;
+            }
+            default:
+                break;
+        }
+
+        switch (cfg.Language)
+        {
+            case LanguageType::C:
+            {
+                ss << "set_property(TARGET " << cfg.Name << " PROPERTY C_STANDARD " << cfg.Dialect << ")\n";
+                break;
+            }
+            case LanguageType::CXX:
+            {
+                ss << "set_property(TARGET " << cfg.Name << " PROPERTY CXX_STANDARD " << cfg.Dialect << ")\n";
+                break;
+            }
+            default:
+                break;
+        }
+
+
+        if (!cfg.IncludedDirectories.empty())
+        {
+            ss << "target_include_directories(" << cfg.Name << " PRIVATE\n";
+
+            for (auto& src :cfg.IncludedDirectories)
+            {
+                ss << "    " << src <<  std::endl;
             }
 
-            ss << ")\n\n";
-        }
-
-        if (cfg.Kind == "StaticLib")
-        {
-            ss << "add_library(" << cfg.Name << " STATIC " << cfg.MainFileDirectory << " ${SRCS})\n\n";
-        }
-        else if (cfg.Kind == "SharedLib")
-        {
-            ss << "add_library(" << cfg.Name << " SHARED " << cfg.MainFileDirectory << " ${SRCS})\n\n";
-        }
-        else if (cfg.Kind == "ConsoleApp")
-        {
-            ss << "add_executable(" << cfg.Name << " " << cfg.MainFileDirectory << " ${SRCS})\n\n";
-        }
-        else
-        {
-            Utils::PrintError("Syntax error - 'Kind'");
-            return "";
-        }
-
-        if (!cfg.IncludeDirectories.empty())
-        {
-            ss << "target_include_directories(" << cfg.Name <<  " PRIVATE\n";
-            for (auto& dir : cfg.IncludeDirectories)
-            {
-                std::string keyword;
-                if (ContainsPathKeyword(dir, keyword))
-                {
-                    std::string out = dir;
-                    out.erase(0, keyword.length());
-                    ss << "    " << GetCMakeSyntax(keyword) << out << std::endl;
-                }
-                else
-                {
-                    ss << "    " << dir << std::endl;
-                }
-            }
-
-            ss << ")\n\n";
+            ss << ")\n";
         }
 
         if (!cfg.Links.empty())
         {
-            ss << "target_link_libraries(" << cfg.Name << std::endl;
-            for (auto& link : cfg.Links)
-            {
-                ss << "    " << link << std::endl;
-            }
-            ss << ")\n\n";
-        }
+            ss << "target_link_libraries(" << cfg.Name << "\n";
 
+            for (auto& src :cfg.Links)
+            {
+                ss << "    " << src <<  std::endl;
+            }
+
+            ss << ")\n";
+        }
         return ss.str();
+    }
+
+
+    // UTILITY ------------------------------------------------------------------------------------
+
+    CMakePlatform::ProjectType CMakePlatform::CheckProjectType(const std::string& line)
+    {
+        std::string lineStr = line;
+        lineStr.erase(remove_if(lineStr.begin(), lineStr.end(), isspace), lineStr.end());
+        const char* lineCSTR = lineStr.c_str();
+        std::string typeStr;
+        for (int i = 0; i < 7; i++)
+        {
+            std::stringstream ss;
+            ss << lineCSTR[i];
+            typeStr.append(ss.str());
+        }
+        if (typeStr == "project")
+        {
+            return ProjectType::INLINE;
+        }
+        if (typeStr == "externa")
+        {
+            return ProjectType::EXTERNAL;
+        }
+        return ProjectType::pNONE;
+    }
+
+    // UTILITY ----------------------------------------------------------------------------------------------------------------
+
+    bool CMakePlatform::CheckSyntax(const std::string& strCache)
+    {
+        PB_PRINT("CheckSyntax");
+        size_t pos = 0;
+        while(pos != NPOS)
+        {
+            size_t eol = strCache.find_first_of("\r\n", pos);
+            std::string line = strCache.substr(pos, eol - pos);
+
+            if (line.find_first_of("\"") == NPOS)
+            {
+                std::string keyword = GetKeyword(line);
+
+                if (!IsMultiParameter(keyword))
+                {
+                    std::stringstream ss;
+                    ss << "Syntax Error - " << keyword;
+                    Utils::PrintError(ss);
+                }
+
+                bool openBracketFound = false;
+
+                if (line.find("{") != NPOS)
+                    openBracketFound = true;
+
+                while (true)
+                {
+                    pos = strCache.find_first_not_of("\r\n", eol);
+                    eol = strCache.find_first_of("\r\n", pos);
+
+                    std::string line = strCache.substr(pos, eol - pos);
+
+                    if (line.find("{") != NPOS && !openBracketFound)
+                    {
+                        openBracketFound = true;
+                        continue;
+                    }
+                    else if (line.find("{") == NPOS && !openBracketFound)
+                    {
+                        std::stringstream ss;
+                        ss << "Syntax Error -'{' . Pos - " << pos;
+                        Utils::PrintError(ss);
+                        return false;
+                    }
+
+                    if (Utils::GetCharacterCount(line, '\"') != 2 && line.find("}") == NPOS)
+                    {
+                        std::stringstream ss;
+                        ss << "Syntax Error - '\"' . Pos - " << pos;
+                        Utils::PrintError(ss);
+                        return false;
+                    }
+
+                    if (Utils::GetCharacterCount(line, ',') > 1 && line.find("}") == NPOS)
+                    {
+                        std::stringstream ss;
+                        ss << "Syntax Error - ',' . Pos - " << pos;
+                        Utils::PrintError(ss);
+                        return false;
+                    }
+                    else if (Utils::GetCharacterCount(line, ',') < 1 && line.find("}") == NPOS)
+                    {
+                        size_t nextLinePos = strCache.find_first_not_of("\r\n", eol);
+                        size_t nextEOL = strCache.find_first_of("\r\n", nextLinePos);
+
+                        std::string nextLine = strCache.substr(nextLinePos, nextEOL - nextLinePos);
+
+                        if (Utils::GetCharacterCount(nextLine, '}') != 1)
+                        {
+                            std::stringstream ss;
+                            ss << "Syntax Error - ',' . Pos - " << pos;
+                            Utils::PrintError(ss);
+                            return false;
+                        }
+
+                    }
+
+                    if (line.find("}") != NPOS)
+                    {
+                        break;
+                    }
+                }
+            }
+            else if (Utils::GetCharacterCount(line, '\"') != 2)
+            {
+                std::stringstream ss;
+                ss << "Syntax Error - '\"' . Pos - " << pos;
+                Utils::PrintError(ss);
+                return false;
+            }
+            pos = strCache.find_first_not_of("\r\n", eol);
+            if (pos == NPOS)
+            {
+                break;
+            }
+        }
+        return true;
+    }
+
+    std::string CMakePlatform::GetKeyword(const std::string& line)
+    {
+        PB_PRINT("GetKeyword");
+        for (auto& keyword : Keywords)
+        {
+            if (line.find(keyword) != NPOS)
+            {
+                return keyword;
+            }
+        }
+        return line;
+    }
+
+    bool CMakePlatform::IsMultiParameter(const std::string& keyword)
+    {
+        PB_PRINT("IsMultiParameter");
+        if (keyword == "configurations")
+            return true;
+        if (keyword == "defines")
+            return true;
+        if (keyword == "files")
+            return true;
+        if (keyword == "includedirs")
+            return true;
+        return false;
+    }
+
+    bool CMakePlatform::IsSetForMultipleParameters(const std::string& strCache, size_t& outPos)
+    {
+        size_t pos = outPos;
+        for (int i = 0; i < 2; i++)
+        {
+            size_t eol = strCache.find_first_of("\r\n", pos);
+            std::string line = strCache.substr(pos, eol - pos);
+
+            if (line.find("{") != NPOS)
+            {
+                return true;
+            }
+            pos = strCache.find_first_not_of("\r\n", eol);
+            if (pos == NPOS)
+                return false;
+        }
+        return false;
+    }
+
+    bool CMakePlatform::ContainsKeyword(const std::string& line, std::string& outKeyword, bool isFilePath)
+    {
+        if (isFilePath)
+        {
+            for (auto& keyword : PathKeywords)
+            {
+                if (line.find(keyword) != NPOS)
+                {
+                    outKeyword = keyword;
+                    return true;
+                }
+            }
+        }
+        else
+        {
+            for (auto& keyword : Keywords)
+            {
+                if (line.find(keyword) != NPOS)
+                {
+                    outKeyword = keyword;
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    std::string CMakePlatform::ParseField(const std::string& line, const std::string& keyword)
+    {
+        std::string out = line;
+        out.erase(remove_if(out.begin(), out.end(), isspace), out.end());
+        out.erase(std::remove(out.begin(), out.end(), '"'), out.end());
+        out.erase(0, keyword.length());
+
+        return out;
+    }
+
+    std::vector<std::string> CMakePlatform::ParseMultipleFields(const std::string& strCache, size_t& outPos, const std::string& keyword)
+    {
+        std::vector<std::string> out;
+        size_t pos = outPos;
+        while (pos != NPOS)
+        {
+            size_t eol = strCache.find_first_of("\r\n", pos);
+            std::string line = strCache.substr(pos, eol - pos);
+
+            if (line.find(keyword) != NPOS)
+            {
+                pos = strCache.find_first_not_of("\r\n", eol);
+                continue;
+            }
+
+            if (line.find("{") != NPOS)
+            {
+                pos = strCache.find_first_not_of("\r\n", eol);
+                continue;
+            }
+
+            if (line.find("}") != NPOS)
+            {
+                break;
+            }
+
+            line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
+            line.erase(std::remove(line.begin(), line.end(), '"'), line.end());
+            line.erase(std::remove(line.begin(), line.end(), ','), line.end());
+
+            out.push_back(line);
+
+            pos = strCache.find_first_not_of("\r\n", eol);
+        }
+        return out;
+    }
+
+    CMakePlatform::ArchitectureType CMakePlatform::StringToArchitectureType(const std::string line)
+    {
+        if (line == "x86")
+            return ArchitectureType::X86;
+        if (line == "x64")
+            return ArchitectureType::X64;
+
+        return ArchitectureType::aNONE;
+    }
+
+    CMakePlatform::LanguageType CMakePlatform::StringToLanguageType(std::string langStr)
+    {
+        if (langStr == "C")
+            return LanguageType::C;
+        if (langStr == "C++")
+            return LanguageType::CXX;
+        return LanguageType::lNONE;
+    }
+    CMakePlatform::KindType CMakePlatform::StringToKindType(std::string kindStr)
+    {
+        if (kindStr == "StaticLib")
+            return KindType::STATICLIB;
+        if (kindStr == "SharedLib")
+            return KindType::SHAREDLIB;
+        if (kindStr == "ConsoleApp")
+            return KindType::CONSOLEAPP;
+        return KindType::kNONE;
     }
 }

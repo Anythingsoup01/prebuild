@@ -1,5 +1,8 @@
 #pragma once
 #include "Core.h"
+#include "Core/Utils.h"
+
+#include <string>
 
 namespace Prebuild
 {
@@ -9,30 +12,53 @@ namespace Prebuild
         Platform() = default;
         ~Platform() = default;
 
-        static Scope<Platform> Create(const char* platformType);
+        static Scope<Platform> Create(Utils::System system, const std::string& version);
+
+        const size_t NPOS = std::string::npos;
+
+        enum ProjectType
+        {
+            pNONE    = 0,
+            INLINE   = 1,
+            EXTERNAL = 2,
+        };
 
         enum KindType
         {
-            NONE = 0,
-            STATICLIB = 1,
-            DYNAMICLIB = 2,
+            kNONE      = 0,
+            STATICLIB  = 1,
+            SHAREDLIB  = 2,
             CONSOLEAPP = 3,
         };
 
-        const char* Keywords[10] = 
+        enum LanguageType
+        {
+            lNONE = 0,
+            C     = 1,
+            CXX   = 2,
+        };
+
+        enum ArchitectureType
+        {
+            aNONE = 0,
+            X86 = 1,
+            X64 = 2,
+        };
+
+        const char* Keywords[10] =
         {
             // WORKSPACE
             "workspace",
-            "version",
             "architecture",
-            "flags",
+            "defines",
             // PROJECTS
             "project",
-            "mainfile",
+            "language",
+            "dialect",
             "kind",
             "files",
             "includedirs",
-            "links"
+            "links",
         };
 
         const char* PathKeywords[1] = 

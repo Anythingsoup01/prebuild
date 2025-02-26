@@ -1,69 +1,82 @@
 #pragma once
-#include "Core/Platform.h"
-
 #include <string>
 #include <vector>
+#include <unordered_map>
 
+#include "Core/Platform.h"
 
 namespace Prebuild
 {
     class CMakePlatform : public Platform
     {
-        struct ProjectConfig;
-    public:
-        CMakePlatform();
-        std::string ParseWorkspace(size_t& pos);
-        std::string ParseProject(size_t& pos, std::string dir = "");
-
-        void BuildWorkspaceConfig();
-        ProjectConfig BuildProjectConfig(std::string& strCache);
-
-        bool ContainsKeyword(std::string& line, std::string& outKeyword);
-        bool ContainsPathKeyword(std::string& line, std::string& outKeyword);
-
-        std::string GetCMakeSyntax(std::string& keyword);
-
-        std::string ParseSingleResponse(const char* keyword, std::string& line);
-        std::vector<std::string> ParseMultipleResponse(const char* keyword, std::string& strCache, size_t& pos);
-
-        void Build();
-        std::string BuildWorkspace();
-        std::string BuildProject(ProjectConfig& cfg);
-        
     private:
         struct WorkspaceConfig
         {
             std::string Name;
-            std::string Version;
-            std::string Architecture;
-            
-            std::string Configuration;
-            std::vector<std::string> Flags;
+            ArchitectureType Architecture;
+
+            std::vector<std::string> Configurations;
+            std::vector<std::string> Defines;
         };
-        WorkspaceConfig m_WorkspaceConfig;
 
         struct ProjectConfig
         {
             std::string Name;
-            std::string MainFileDirectory;
-            std::string Kind;
+            std::string Dialect;
+
+            LanguageType Language;
+            KindType Kind;
 
             std::vector<std::string> Files;
-            std::vector<std::string> IncludeDirectories;
+            std::vector<std::string> IncludedDirectories;
             std::vector<std::string> Links;
+            std::unordered_map<std::string, std::vector<std::string>> ConfigurationDefines;
         };
+
         struct Projects
         {
             std::vector<ProjectConfig> InlineProjects;
-            std::vector<ProjectConfig> ExternalProjects;
+            std::unordered_map<std::string, ProjectConfig> ExternalProjects;
         };
-        Projects m_Projects;
+    public:
+        CMakePlatform(const std::string& version);
     private:
-        std::string m_PrebuildString;
+
+        std::string ParseWorkspace(size_t& outPos);
+        std::string ParseProject(size_t& outPos, std::string dir = "");
+
+        void BuildWorkspaceConfig();
+        ProjectConfig BuildProjectConfig(const std::string& strCache);
+
+        void Build();
+        std::string BuildProject(ProjectConfig& cfg);
+
+        // Utility
+        bool CheckSyntax(const std::string& strCache);
+        std::string GetKeyword(const std::string& line);
+        bool IsMultiParameter(const std::string& keyword);
+        bool ContainsKeyword(const std::string& line, std::string& outKeyword, bool isFilePath = false);
+        bool IsSetForMultipleParameters(const std::string& strCache, size_t& pos);
+
+        std::string ParseField(const std::string& line, const std::string& keyword);
+        std::vector<std::string> ParseMultipleFields(const std::string& strCache, size_t& outPos, const std::string& keyword);
+
+        ArchitectureType StringToArchitectureType(const std::string archStr);
+        LanguageType StringToLanguageType(std::string langStr);
+        KindType StringToKindType(std::string kindStr);
+
+        ProjectType CheckProjectType(const std::string& line);
+
+    private:
+        std::string m_Version;
+        std::string m_RootPrebuildString;
         std::string m_WorkspaceString;
         std::vector<std::string> m_InlineProjectStrings;
-        std::vector<std::string> m_ExternalProjectStrings;
-        std::vector<std::string> m_ExternalProjectDirs;
+        std::unordered_map<std::string, std::string> m_ExternalProjectStrings;
+
+        WorkspaceConfig m_WorkspaceConfig;
+
+        Projects m_Projects;
 
     };
 }

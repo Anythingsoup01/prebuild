@@ -244,6 +244,8 @@ namespace Prebuild
                     cfg.IncludedDirectories = ParseMultipleFields(strCache, pos, keyword);
                 if (keyword == "files")
                     cfg.Files = ParseMultipleFields(strCache, pos, keyword);
+                if (keyword == "links")
+                    cfg.Links = ParseMultipleFields(strCache, pos, keyword);
             }
 
             pos = strCache.find_first_not_of("\r\n", eol);

@@ -45,20 +45,20 @@ namespace Prebuild
             X64 = 2,
         };
 
-        const char* Keywords[10] = 
+        const char* Keywords[10] =
         {
             // WORKSPACE
             "workspace",
             "architecture",
-            "configurations",
             "defines",
             // PROJECTS
             "project",
+            "language",
+            "dialect",
             "kind",
             "files",
             "includedirs",
             "links",
-            "configurations",
         };
 
         const char* PathKeywords[1] = 

@@ -33,9 +33,7 @@ namespace Prebuild
         {
             return;
         }
-
         BuildWorkspaceConfig();
-
 
         while (pos != NPOS)
         {
@@ -76,22 +74,16 @@ namespace Prebuild
                     }
 
                     ProjectConfig cfg = BuildProjectConfig(projStr);
-
                     m_Projects.ExternalProjects.emplace(dir, cfg);
-
                     break;
                 }
                 default:
                 {
                     break;
                 }
-
             }
             pos = m_RootPrebuildString.find_first_not_of("\r\n", eol);
-
-
         }
-
         Build();
 
     }
@@ -116,7 +108,6 @@ namespace Prebuild
             {
                 size_t nextEOL = file.find_first_of("\r\n", nextLinePos);
                 std::string nextLine = file.substr(nextLinePos, nextEOL - nextLinePos);
-
 
                 if (nextLine.find("project") != NPOS || nextLine.find("external") != NPOS)
                 {
@@ -180,12 +171,10 @@ namespace Prebuild
             }
             else
                 break;
-
         }
 
         return ss.str();
     }
-
 
     // BUILDING CONFIGS ------------------------------------------------------------------------------------
 
@@ -193,7 +182,6 @@ namespace Prebuild
     {
         std::string file = m_WorkspaceString;
         size_t pos = 0;
-
         WorkspaceConfig cfg;
 
         while (pos != NPOS)
@@ -291,13 +279,13 @@ namespace Prebuild
         }
         std::stringstream lss;
         if (containsC)
-            lss << "C ";
+            lss << " C";
         if (containsCXX)
-            lss << "CXX ";
+            lss << " CXX";
 
         ss << "cmake_minimum_required(VERSION " << m_Version << ")\n"
            << "set(CMAKE_EXPORT_COMPILE_COMMANDS ON)\n"
-           << "project(" << m_WorkspaceConfig.Name << " LANGUAGES C CXX)\n"
+           << "project(" << m_WorkspaceConfig.Name << " LANGUAGES" << lss.str() << ")\n"
            << "set(GDEFINES\n";
            for (auto& def : m_WorkspaceConfig.Defines)
                ss << "    " << def << std::endl;
@@ -378,12 +366,12 @@ namespace Prebuild
         {
             case LanguageType::C:
             {
-                ss << "set_property(TARGET " << cfg.Name << "PROPERTY C_STANDARD " << cfg.Dialect << ")\n";
+                ss << "set_property(TARGET " << cfg.Name << " PROPERTY C_STANDARD " << cfg.Dialect << ")\n";
                 break;
             }
             case LanguageType::CXX:
             {
-                ss << "set_property(TARGET " << cfg.Name << "PROPERTY CXX_STANDARD " << cfg.Dialect << ")\n";
+                ss << "set_property(TARGET " << cfg.Name << " PROPERTY CXX_STANDARD " << cfg.Dialect << ")\n";
                 break;
             }
             default:
@@ -414,8 +402,6 @@ namespace Prebuild
 
             ss << ")\n";
         }
-
-
         return ss.str();
     }
 
@@ -436,12 +422,10 @@ namespace Prebuild
         }
         if (typeStr == "project")
         {
-            Utils::PrintWarning("INLINE PROJECT");
             return ProjectType::INLINE;
         }
         if (typeStr == "externa")
         {
-            Utils::PrintWarning("EXTERNAL PROJECT");
             return ProjectType::EXTERNAL;
         }
         return ProjectType::pNONE;
@@ -560,8 +544,6 @@ namespace Prebuild
         }
         return line;
     }
-
-
 
     bool CMakePlatform::IsMultiParameter(const std::string& keyword)
     {
@@ -698,5 +680,4 @@ namespace Prebuild
             return KindType::CONSOLEAPP;
         return KindType::kNONE;
     }
-
 }

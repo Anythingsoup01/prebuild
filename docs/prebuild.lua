@@ -1,10 +1,16 @@
 // Note - Comments do not work at the moment
 workspace "docs-example"
+    defines
+    {
+        "ExampleDefinition1",
+        "ExampleDefinition2",
+        "ExampleDefinition3",
+    }
 
-project "doc-inline-example"
-    language "C++"
-    dialect "17"
-    kind "ConsoleApp"
+project "doc-inline-example1"
+    language "C++"    // C++ C
+    dialect "17"      // Depending on the language dialect will set c/c++ standard
+    kind "ConsoleApp" // ConsoleApp StaticLib SharedLib
 
     includedirs
     {
@@ -26,3 +32,5 @@ project "doc-inline-example"
         "ExampleLib2",
         "ExampleLib3"
     }
+
+external "external-folder"

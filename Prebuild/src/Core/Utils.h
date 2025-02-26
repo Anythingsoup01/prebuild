@@ -5,6 +5,14 @@
 
 namespace Utils
 {
+    enum System
+    {
+        NONE = 0,
+        CMAKE = 1,
+    };
+
+    System GetSystem(char* sysString);
+
     void PrintError(const char* msg);
     void PrintError(const std::string& msg);
     void PrintError(const std::stringstream& msg);

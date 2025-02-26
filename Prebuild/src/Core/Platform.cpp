@@ -3,14 +3,18 @@
 
 namespace Prebuild
 {
-    Scope<Platform> Platform::Create(const char* platformType)
+    Scope<Platform> Platform::Create(Utils::System system,const std::string& version)
     {
-        std::string platformString(platformType);
-        if (platformString == "cmake")
+        switch (system)
         {
-            return CreateScope<CMakePlatform>();
+            case Utils::System::CMAKE:
+            {
+                return CreateScope<CMakePlatform>(version);
+            }
+            default:
+                return nullptr;
+
         }
 
-        return nullptr;
     }
 }

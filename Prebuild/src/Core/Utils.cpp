@@ -5,6 +5,14 @@
 
 namespace Utils
 {
+    System GetSystem(char* sysString)
+    {
+        std::string systemString(sysString);
+        if (systemString == "cmake")
+            return System::CMAKE;
+
+        return System::NONE;
+    }
     void PrintError(const char* msg)
     {
         printf("ERROR: %s\n", msg);
@@ -55,7 +63,6 @@ namespace Utils
             if (lineCSTR[i] == character)
             {
                 count++;
-
             }
         }
         return count;

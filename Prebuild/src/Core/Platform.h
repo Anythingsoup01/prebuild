@@ -1,5 +1,6 @@
 #pragma once
 #include "Core.h"
+#include "Core/Utils.h"
 
 #include <string>
 
@@ -11,7 +12,7 @@ namespace Prebuild
         Platform() = default;
         ~Platform() = default;
 
-        static Scope<Platform> Create(const char* platformType);
+        static Scope<Platform> Create(Utils::System system, const std::string& version);
 
         const size_t NPOS = std::string::npos;
 

@@ -1,20 +1,16 @@
-cmake_minimum_required(VERSION 3.16)
-
+cmake_minimum_required(VERSION 3.30.0)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-project(Prebuild)
-
-set(Files
-Prebuild/src/Core/Utils.cpp
-Prebuild/src/Core/Platform.cpp
-Prebuild/src/Platform/CMake/CMakePlatform.cpp
+project(Prebuild LANGUAGES C CXX)
+set(GDEFINES
 )
 
-add_executable(prebuild Prebuild/src/prebuild.cpp ${Files})
-
-set(Dirs
-Prebuild/src
+set(SRCS
+    Prebuild/src/Core/Platform.cpp
+    Prebuild/src/Core/Utils.cpp
+    Prebuild/src/prebuild.cpp
+    Prebuild/src/Platform/CMake/CMakePlatform.cpp
 )
-
-target_include_directories(prebuild PUBLIC ${Dirs})
-
+add_executable(prebuild ${SRCS})
+target_include_directories(prebuild PRIVATE
+    Prebuild/src
+)

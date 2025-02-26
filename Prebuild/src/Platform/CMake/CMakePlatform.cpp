@@ -65,7 +65,8 @@ namespace Prebuild
                     std::string projStr = ParseProject(pos, dir);
                     if (projStr.empty())
                     {
-                        return;
+                        m_NonPrebuildProject.push_back(dir);
+                        break;
                     }
 
                     if(!CheckSyntax(projStr))
@@ -136,7 +137,7 @@ namespace Prebuild
             if (!in.is_open())
             {
                 std::stringstream oss;
-                oss << "Could not open prebuild file at - " << dir;
+                oss << "Could not open prebuild file at - " << dir << ". Assuming there is a CMakeLists.txt file already located there!";
                 Utils::PrintError(oss);
                 return std::string();
             }
@@ -316,6 +317,12 @@ namespace Prebuild
             out.close();
         }
 
+        for (auto dir : m_NonPrebuildProject)
+        {
+            Utils::PrintWarning(dir);
+            ss << "add_subdirectory(" << dir << ")\n";
+        }
+
         std::ofstream out("CMakeLists.txt");
         if (!out.is_open())
         {
@@ -366,12 +373,12 @@ namespace Prebuild
         {
             case LanguageType::C:
             {
-                ss << "set_property(TARGET " << cfg.Name << " PROPERTY C_STANDARD " << cfg.Dialect << ")\n";
+                ss << "set_property(TARGET " << cfg.Name << " PROPERTY C_STANDARD " << cfg.Dialect << ")\n\n";
                 break;
             }
             case LanguageType::CXX:
             {
-                ss << "set_property(TARGET " << cfg.Name << " PROPERTY CXX_STANDARD " << cfg.Dialect << ")\n";
+                ss << "set_property(TARGET " << cfg.Name << " PROPERTY CXX_STANDARD " << cfg.Dialect << ")\n\n";
                 break;
             }
             default:
@@ -388,7 +395,7 @@ namespace Prebuild
                 ss << "    " << src <<  std::endl;
             }
 
-            ss << ")\n";
+            ss << ")\n\n";
         }
 
         if (!cfg.Links.empty())
@@ -400,7 +407,7 @@ namespace Prebuild
                 ss << "    " << src <<  std::endl;
             }
 
-            ss << ")\n";
+            ss << ")\n\n";
         }
         return ss.str();
     }

@@ -24,6 +24,8 @@ project "doc-inline-example1"
         "doc/example/file1.cpp",
         "doc/example/file2.cpp",
         "doc/example/file3.cpp",
+        // or alternatively
+        "doc/*.cpp",
     }
 
     links

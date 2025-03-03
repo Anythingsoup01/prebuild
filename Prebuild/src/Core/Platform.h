@@ -16,42 +16,53 @@ namespace Prebuild
 
         const size_t NPOS = std::string::npos;
 
-        enum ProjectType
+        enum class ProjectType
         {
-            pNONE    = 0,
-            INLINE   = 1,
-            EXTERNAL = 2,
+            NONE = 0,
+            INLINE,
+            EXTERNAL,
         };
 
-        enum KindType
+        enum class KindType
         {
-            kNONE      = 0,
-            STATICLIB  = 1,
-            SHAREDLIB  = 2,
-            CONSOLEAPP = 3,
+            NONE = 0,
+            STATICLIB,
+            SHAREDLIB,
+            CONSOLEAPP,
         };
 
-        enum LanguageType
+        enum class LanguageType
         {
-            lNONE = 0,
-            C     = 1,
-            CXX   = 2,
+            NONE = 0,
+            C,
+            CXX,
         };
 
-        enum ArchitectureType
+        enum class ArchitectureType
         {
-            aNONE = 0,
-            X86 = 1,
-            X64 = 2,
+            NONE = 0,
+            X86,
+            X64,
         };
 
-        const char* Keywords[10] =
+        enum class KeywordType
         {
-            // WORKSPACE
+            NONE = 0,
+            WORKSPACE,
+            PROJECT,
+            FILTER,
+            FILEPATH,
+        };
+
+        const char* WorkspaceKeywords[3] =
+        {
             "workspace",
             "architecture",
             "defines",
-            // PROJECTS
+        };
+
+        const char* ProjectKeywords[8]
+        {
             "project",
             "language",
             "dialect",
@@ -59,6 +70,28 @@ namespace Prebuild
             "files",
             "includedirs",
             "links",
+            "filter",
+        };
+
+        const char* FilterKeywords[2]
+        {
+            "filter",
+            "defines",
+        };
+
+        const char* AllKeywords[11]
+        {
+            "workspace",
+            "architecture",
+            "defines",
+            "project",
+            "language",
+            "dialect",
+            "kind",
+            "files",
+            "includedirs",
+            "links",
+            "filter",
         };
 
         const char* PathKeywords[1] = 

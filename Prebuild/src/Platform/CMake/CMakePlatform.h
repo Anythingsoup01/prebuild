@@ -19,6 +19,13 @@ namespace Prebuild
             std::vector<std::string> Defines;
         };
 
+        struct FilterConfig
+        {
+            std::string FilterParameter;
+
+            std::vector<std::string> Defines;
+        };
+
         struct ProjectConfig
         {
             std::string Name;
@@ -30,7 +37,9 @@ namespace Prebuild
             std::vector<std::string> Files;
             std::vector<std::string> IncludedDirectories;
             std::vector<std::string> Links;
-            std::unordered_map<std::string, std::vector<std::string>> ConfigurationDefines;
+            std::vector<std::string> Defines;
+
+            std::vector<FilterConfig> Filters;
         };
 
         struct Projects
@@ -50,22 +59,28 @@ namespace Prebuild
 
         void Build();
         std::string BuildProject(ProjectConfig& cfg);
+        std::string BuildFilter(FilterConfig& cfg, const std::string& target);
 
         // Utility
         bool CheckSyntax(const std::string& strCache);
         std::string GetKeyword(const std::string& line);
         bool IsMultiParameter(const std::string& keyword);
-        bool ContainsKeyword(const std::string& line, std::string& outKeyword, bool isFilePath = false);
+        bool ContainsKeyword(const std::string& line, std::string& outKeyword, const KeywordType type);
         bool IsSetForMultipleParameters(const std::string& strCache, size_t& pos);
 
         std::string ParseField(const std::string& line, const std::string& keyword);
         std::vector<std::string> ParseMultipleFields(const std::string& strCache, size_t& outPos, const std::string& keyword);
+
+        FilterConfig ParseFilter(const std::string& strCache, size_t& outPos, const std::string& keyword);
+
 
         ArchitectureType StringToArchitectureType(const std::string archStr);
         LanguageType StringToLanguageType(std::string langStr);
         KindType StringToKindType(std::string kindStr);
 
         ProjectType CheckProjectType(const std::string& line);
+
+        void GetCMakeSyntax(const std::string& keyword,std::string& outLine);
 
     private:
         std::string m_Version;

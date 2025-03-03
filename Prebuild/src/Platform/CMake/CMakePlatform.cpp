@@ -191,7 +191,7 @@ namespace Prebuild
             std::string line = file.substr(pos, eol - pos);
 
             std::string keyword;
-            if (ContainsKeyword(line, keyword))
+            if (ContainsKeyword(line, keyword, KeywordType::WORKSPACE))
             {
                 if (keyword == "workspace")
                     cfg.Name = ParseField(line, keyword);
@@ -230,7 +230,7 @@ namespace Prebuild
             std::string line = strCache.substr(pos, eol - pos);
 
             std::string keyword;
-            if (ContainsKeyword(line, keyword))
+            if (ContainsKeyword(line, keyword, KeywordType::PROJECT))
             {
                 if (keyword == "project")
                     cfg.Name = ParseField(line, keyword);
@@ -241,11 +241,28 @@ namespace Prebuild
                 if (keyword == "kind")
                     cfg.Kind = StringToKindType(ParseField(line, keyword));
                 if (keyword == "includedirs")
-                    cfg.IncludedDirectories = ParseMultipleFields(strCache, pos, keyword);
+                {
+                    std::vector<std::string> out = ParseMultipleFields(strCache, pos, keyword);
+                    for (auto& dir : out)
+                    {
+                        std::string line = dir;
+                        std::string keyword;
+                        std::string outSyntax;
+                        if (ContainsKeyword(line, keyword, KeywordType::FILEPATH))
+                        {
+                            GetCMakeSyntax(keyword, line);
+                        }
+                        cfg.IncludedDirectories.push_back(line);
+                    }
+                }
                 if (keyword == "files")
                     cfg.Files = ParseMultipleFields(strCache, pos, keyword);
                 if (keyword == "links")
                     cfg.Links = ParseMultipleFields(strCache, pos, keyword);
+                if (keyword == "filter")
+                {
+                    cfg.Filters.push_back(ParseFilter(strCache, pos, keyword));
+                }
             }
 
             pos = strCache.find_first_not_of("\r\n", eol);
@@ -411,6 +428,37 @@ namespace Prebuild
 
             ss << ")\n\n";
         }
+
+        if (!m_WorkspaceConfig.Defines.empty())
+        {
+            ss << "target_compile_definitions(" << cfg.Name << " PUBLIC GDEFINES)\n";
+        }
+
+        if (!cfg.Filters.empty())
+        {
+            for (auto& filter : cfg.Filters)
+                ss << BuildFilter(filter, cfg.Name);
+        }
+        return ss.str();
+    }
+
+    std::string CMakePlatform::BuildFilter(FilterConfig& cfg, const std::string& target)
+    {
+        std::stringstream ss;
+        if (cfg.FilterParameter.find("system") != NPOS)
+        {
+            std::string filter = cfg.FilterParameter;
+            filter.erase(0, 7);
+            if (filter == "linux")
+                ss << "if(UNIX AND NOT APPLE)\n";
+            else if (filter == "windows")
+                ss << "if(WIN32)\n";
+        }
+
+        ss << "    target_compile_definitions(" << target << " PUBLIC\n";
+        for (auto& define : cfg.Defines)
+            ss << "        " << define << std::endl;
+        ss << "    )\n)";
         return ss.str();
     }
 
@@ -437,7 +485,7 @@ namespace Prebuild
         {
             return ProjectType::EXTERNAL;
         }
-        return ProjectType::pNONE;
+        return ProjectType::NONE;
     }
 
     // UTILITY ----------------------------------------------------------------------------------------------------------------
@@ -544,7 +592,7 @@ namespace Prebuild
     std::string CMakePlatform::GetKeyword(const std::string& line)
     {
         PB_PRINT("GetKeyword");
-        for (auto& keyword : Keywords)
+        for (auto& keyword : AllKeywords)
         {
             if (line.find(keyword) != NPOS)
             {
@@ -587,30 +635,66 @@ namespace Prebuild
         return false;
     }
 
-    bool CMakePlatform::ContainsKeyword(const std::string& line, std::string& outKeyword, bool isFilePath)
+    bool CMakePlatform::ContainsKeyword(const std::string& line, std::string& outKeyword, const KeywordType type)
     {
-        if (isFilePath)
+        switch (type)
         {
-            for (auto& keyword : PathKeywords)
+            case (KeywordType::WORKSPACE):
             {
-                if (line.find(keyword) != NPOS)
+                for (auto& keyword : WorkspaceKeywords)
                 {
-                    outKeyword = keyword;
-                    return true;
+                    if (line.find(keyword) != NPOS)
+                    {
+                        outKeyword = keyword;
+                        return true;
+                    }
                 }
+                break;
             }
-        }
-        else
-        {
-            for (auto& keyword : Keywords)
+
+            case (KeywordType::PROJECT):
             {
-                if (line.find(keyword) != NPOS)
+                for (auto& keyword : ProjectKeywords)
                 {
-                    outKeyword = keyword;
-                    return true;
+                    if (line.find(keyword) != NPOS)
+                    {
+                        outKeyword = keyword;
+                        return true;
+                    }
                 }
+                break;
             }
+
+            case (KeywordType::FILTER):
+            {
+                for (auto& keyword : FilterKeywords)
+                {
+                    if (line.find(keyword) != NPOS)
+                    {
+                        outKeyword = keyword;
+                        return true;
+                    }
+                }
+                break;
+            }
+
+            case (KeywordType::FILEPATH):
+            {
+                for (auto& keyword : PathKeywords)
+                {
+                    if (line.find(keyword) != NPOS)
+                    {
+                        outKeyword = keyword;
+                        return true;
+                    }
+                }
+                break;
+            }
+
+            default:
+                break;
         }
+
         return false;
     }
 
@@ -661,6 +745,54 @@ namespace Prebuild
         return out;
     }
 
+    CMakePlatform::FilterConfig CMakePlatform::ParseFilter(const std::string& strCache, size_t& outPos, const std::string& keyword)
+    {
+        std::stringstream out;
+        size_t pos = outPos;
+        FilterConfig cfg;
+        while (pos != NPOS)
+        {
+            size_t eol = strCache.find_first_of("\r\n", pos);
+            std::string line = strCache.substr(pos, eol - pos);
+
+            std::string keyword;
+            if (ContainsKeyword(line, keyword, KeywordType::FILTER))
+            {
+                if (keyword == "filter")
+                {
+                    cfg.FilterParameter = ParseField(line, keyword);
+                }
+
+                if (keyword == "defines")
+                {
+                    if (IsSetForMultipleParameters(strCache, pos))
+                        cfg.Defines = ParseMultipleFields(strCache, pos, keyword);
+                    else
+                        cfg.Defines.push_back(ParseField(line, keyword));
+                }
+            }
+            size_t nextLinePos = strCache.find_first_not_of("\r\n", eol);
+            if (nextLinePos != NPOS)
+            {
+                size_t nextEOL = strCache.find_first_of("\r\n", nextLinePos);
+                std::string nextLine = strCache.substr(nextLinePos, nextEOL - nextLinePos);
+                if (nextLine.find("filter") != NPOS)
+                {
+                    outPos = nextLinePos;
+                    break;
+                }
+            }
+            else
+            {
+                break;
+            }
+
+            pos = nextLinePos;
+
+        }
+        return cfg;
+    }
+
     CMakePlatform::ArchitectureType CMakePlatform::StringToArchitectureType(const std::string line)
     {
         if (line == "x86")
@@ -668,7 +800,7 @@ namespace Prebuild
         if (line == "x64")
             return ArchitectureType::X64;
 
-        return ArchitectureType::aNONE;
+        return ArchitectureType::NONE;
     }
 
     CMakePlatform::LanguageType CMakePlatform::StringToLanguageType(std::string langStr)
@@ -677,7 +809,7 @@ namespace Prebuild
             return LanguageType::C;
         if (langStr == "C++")
             return LanguageType::CXX;
-        return LanguageType::lNONE;
+        return LanguageType::NONE;
     }
     CMakePlatform::KindType CMakePlatform::StringToKindType(std::string kindStr)
     {
@@ -687,6 +819,19 @@ namespace Prebuild
             return KindType::SHAREDLIB;
         if (kindStr == "ConsoleApp")
             return KindType::CONSOLEAPP;
-        return KindType::kNONE;
+        return KindType::NONE;
+    }
+    void CMakePlatform::GetCMakeSyntax(const std::string& keyword, std::string& line)
+    {
+        std::string outKeyword;
+        if (keyword == "$(ROOTDIR)")
+            outKeyword = "${CMAKE_SOURCE_DIR}";
+
+        std::string out = line;
+        out.erase(0, keyword.length());
+        std::stringstream ss;
+        ss << outKeyword << out;
+        line = ss.str();
+
     }
 }

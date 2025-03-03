@@ -252,6 +252,10 @@ namespace Prebuild
                         {
                             GetCMakeSyntax(keyword, line);
                         }
+                        if (line.find("*") != NPOS)
+                        {
+                            Utils::PrintWarning("Successfully found the asterisk!");
+                        }
                         cfg.IncludedDirectories.push_back(line);
                     }
                 }

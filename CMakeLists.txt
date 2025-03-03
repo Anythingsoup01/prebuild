@@ -5,7 +5,6 @@ set(GDEFINES
 )
 
 set(SRCS
-    Prebuild/src/prebuild.cpp
     Prebuild/src/Core/Core.h
     Prebuild/src/Core/Platform.cpp
     Prebuild/src/Core/Platform.h
@@ -13,6 +12,7 @@ set(SRCS
     Prebuild/src/Core/Utils.h
     Prebuild/src/Platform/CMake/CMakePlatform.cpp
     Prebuild/src/Platform/CMake/CMakePlatform.h
+    Prebuild/src/prebuild.cpp
 )
 add_executable(prebuild ${SRCS})
 set_property(TARGET prebuild PROPERTY CXX_STANDARD 17)

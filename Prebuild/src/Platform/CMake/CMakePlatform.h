@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <filesystem>
 
 #include "Core/Platform.h"
 
@@ -53,9 +54,10 @@ namespace Prebuild
 
         std::string ParseWorkspace(size_t& outPos);
         std::string ParseProject(size_t& outPos, std::string dir = "");
+        FilterConfig ParseFilter(const std::string& strCache, size_t& outPos, const std::string& keyword);
 
         void BuildWorkspaceConfig();
-        ProjectConfig BuildProjectConfig(const std::string& strCache);
+        ProjectConfig BuildProjectConfig(const std::string& strCache, bool isExternal);
 
         void Build();
         std::string BuildProject(ProjectConfig& cfg);
@@ -70,9 +72,8 @@ namespace Prebuild
 
         std::string ParseField(const std::string& line, const std::string& keyword);
         std::vector<std::string> ParseMultipleFields(const std::string& strCache, size_t& outPos, const std::string& keyword);
-
-        FilterConfig ParseFilter(const std::string& strCache, size_t& outPos, const std::string& keyword);
-
+        std::vector<std::string> GetAllFilesWithExtension(const std::string& line, const std::string& extension, const std::string folderName = "");
+        std::vector<std::string> SearchDirectoryFor(const std::filesystem::path filePath, const std::string extension);
 
         ArchitectureType StringToArchitectureType(const std::string archStr);
         LanguageType StringToLanguageType(std::string langStr);

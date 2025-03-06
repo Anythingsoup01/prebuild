@@ -520,20 +520,22 @@ namespace Prebuild
     std::string CMakePlatform::BuildFilter(FilterConfig& cfg, const std::string& target)
     {
         std::stringstream ss;
+        std::string platform;
         if (cfg.FilterParameter.find("system") != NPOS)
         {
             std::string filter = cfg.FilterParameter;
             filter.erase(0, 7);
             if (filter == "linux")
-                ss << "if(UNIX AND NOT APPLE)\n";
+                platform = "UNIX AND NOT APPLE";
             else if (filter == "windows")
-                ss << "if(WIN32)\n";
+                platform = "WIN32";
         }
-
-        ss << "    target_compile_definitions(" << target << " PUBLIC\n";
+        ss << "if (" << platform << ")\n"
+           << "    target_compile_definitions(" << target << " PUBLIC\n";
         for (auto& define : cfg.Defines)
             ss << "        " << define << std::endl;
-        ss << "    )\n)";
+        ss << "    )\n"
+           << "endif(" << platform << ")\n";
         return ss.str();
     }
 

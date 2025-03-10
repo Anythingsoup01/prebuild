@@ -25,6 +25,7 @@ namespace Prebuild
             std::string FilterParameter;
 
             std::vector<std::string> Defines;
+            std::vector<std::string> Links;
         };
 
         struct ProjectConfig
@@ -56,14 +57,16 @@ namespace Prebuild
 
         std::string ParseWorkspace(size_t& outPos);
         std::string ParseProject(size_t& outPos, std::string dir = "");
-        FilterConfig ParseFilter(const std::string& strCache, size_t& outPos, const std::string& keyword);
 
         void BuildWorkspaceConfig();
         ProjectConfig BuildProjectConfig(const std::string& strCache, bool isExternal);
+        FilterConfig BuildFilterConfig(const std::string& strCache, size_t& outPos, const std::string& keyword, const std::string& projectName, bool isExternal);
 
         void Build();
         std::string BuildProject(ProjectConfig& cfg);
-        std::string BuildFilter(FilterConfig& cfg, const std::string& target);
+        std::string BuildFilter(const FilterConfig& cfg, const std::string& target);
+        std::string BuildFilterPlatform(const FilterConfig& cfg, const std::string& target);
+        std::string BuildFilterConfigurations(const FilterConfig& cfg, const std::string& target);
 
         // Utility
         bool CheckSyntax(const std::string& strCache);
@@ -74,6 +77,8 @@ namespace Prebuild
 
         std::string ParseField(const std::string& line, const std::string& keyword);
         std::vector<std::string> ParseMultipleFields(const std::string& strCache, size_t& outPos, const std::string& keyword);
+        std::vector<std::string> GetMultipleFields(const std::string& strCache, size_t& outPos, const std::string& keyword);
+
         std::vector<std::string> GetAllFilesWithExtension(const std::string& line, const std::string& extension, const std::string folderName = "");
         std::vector<std::string> SearchDirectoryFor(const std::filesystem::path filePath, const std::string extension);
 

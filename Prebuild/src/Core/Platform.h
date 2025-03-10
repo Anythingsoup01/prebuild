@@ -54,10 +54,11 @@ namespace Prebuild
             FILEPATH,
         };
 
-        const char* WorkspaceKeywords[3] =
+        const char* WorkspaceKeywords[4] =
         {
             "workspace",
             "architecture",
+            "configurations",
             "defines",
         };
 
@@ -74,16 +75,18 @@ namespace Prebuild
             "filter",
         };
 
-        const char* FilterKeywords[2]
+        const char* FilterKeywords[3]
         {
             "filter",
             "defines",
+            "links",
         };
 
-        const char* AllKeywords[12]
+        const char* AllKeywords[13]
         {
             "workspace",
             "architecture",
+            "configurations",
             "defines",
             "project",
             "language",

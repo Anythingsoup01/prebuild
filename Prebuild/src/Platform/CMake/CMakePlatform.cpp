@@ -178,54 +178,6 @@ namespace Prebuild
         return ss.str();
     }
 
-    CMakePlatform::FilterConfig CMakePlatform::ParseFilter(const std::string& strCache, size_t& outPos, const std::string& keyword)
-    {
-        std::stringstream out;
-        size_t pos = outPos;
-        FilterConfig cfg;
-        while (pos != NPOS)
-        {
-            size_t eol = strCache.find_first_of("\r\n", pos);
-            std::string line = strCache.substr(pos, eol - pos);
-
-            std::string keyword;
-            if (ContainsKeyword(line, keyword, KeywordType::FILTER))
-            {
-                if (keyword == "filter")
-                {
-                    cfg.FilterParameter = ParseField(line, keyword);
-                }
-
-                if (keyword == "defines")
-                {
-                    if (IsSetForMultipleParameters(strCache, pos))
-                        cfg.Defines = ParseMultipleFields(strCache, pos, keyword);
-                    else
-                        cfg.Defines.push_back(ParseField(line, keyword));
-                }
-            }
-            size_t nextLinePos = strCache.find_first_not_of("\r\n", eol);
-            if (nextLinePos != NPOS)
-            {
-                size_t nextEOL = strCache.find_first_of("\r\n", nextLinePos);
-                std::string nextLine = strCache.substr(nextLinePos, nextEOL - nextLinePos);
-                if (nextLine.find("filter") != NPOS)
-                {
-                    outPos = nextLinePos;
-                    break;
-                }
-            }
-            else
-            {
-                break;
-            }
-
-            pos = nextLinePos;
-
-        }
-        return cfg;
-    }
-
 
     // BUILDING CONFIGS ------------------------------------------------------------------------------------
 
@@ -245,28 +197,25 @@ namespace Prebuild
             {
                 if (keyword == "workspace")
                     cfg.Name = ParseField(line, keyword);
-                if (keyword == "architecture")
+                else if (keyword == "architecture")
                     cfg.Architecture = StringToArchitectureType(ParseField(line, keyword));
-                if (keyword == "configurations")
-                {
-                    if (IsSetForMultipleParameters(file, pos))
-                        cfg.Configurations = ParseMultipleFields(file, pos, keyword);
-                    else
- ;                      cfg.Configurations.push_back(ParseField(line, keyword));
-                }
-                if (keyword == "defines")
-                {
-                    if (IsSetForMultipleParameters(file, pos))
-                        cfg.Defines = ParseMultipleFields(file, pos, keyword);
-                    else
-                        cfg.Defines.push_back(ParseField(line, keyword));
-                }
+                else if (keyword == "configurations")
+                   cfg.Configurations = GetMultipleFields(file, pos, keyword);
+                else if (keyword == "defines")
+                    cfg.Defines = GetMultipleFields(file, pos, keyword);
             }
 
             pos = file.find_first_not_of("\r\n", eol);
             if (pos == NPOS)
                 break;
         }
+
+        if (cfg.Configurations.empty())
+        {
+            cfg.Configurations.push_back("Debug");
+            cfg.Configurations.push_back("Release");
+        }
+
         m_WorkspaceConfig = cfg;
     }
 
@@ -284,22 +233,21 @@ namespace Prebuild
             {
                 if (keyword == "project")
                     cfg.Name = ParseField(line, keyword);
-                if (keyword == "language")
+                else if (keyword == "language")
                     cfg.Language = StringToLanguageType(ParseField(line, keyword));
-                if (keyword == "dialect")
+                else if (keyword == "dialect")
                     cfg.Dialect = ParseField(line, keyword);
-                if (keyword == "kind")
+                else if (keyword == "kind")
                     cfg.Kind = StringToKindType(ParseField(line, keyword));
-                if (keyword == "pch")
+                else if (keyword == "pch")
                     cfg.PrecompiledHeader = ParseField(line, keyword);
-                if (keyword == "includedirs")
+                else if (keyword == "includedirs")
                 {
                     std::vector<std::string> out = ParseMultipleFields(strCache, pos, keyword);
                     for (auto& dir : out)
                     {
                         std::string line = dir;
                         std::string keyword;
-                        std::string outSyntax;
                         if (ContainsKeyword(line, keyword, KeywordType::FILEPATH))
                         {
                             GetCMakeSyntax(keyword, line);
@@ -307,7 +255,7 @@ namespace Prebuild
                         cfg.IncludedDirectories.push_back(line);
                     }
                 }
-                if (keyword == "files")
+                else if (keyword == "files")
                 {
                     std::vector<std::string> out = ParseMultipleFields(strCache, pos, keyword);
                     for (auto& file : out)
@@ -334,17 +282,100 @@ namespace Prebuild
                         }
                     }
                 }
-                if (keyword == "links")
-                    cfg.Links = ParseMultipleFields(strCache, pos, keyword);
-                if (keyword == "filter")
+                else if (keyword == "links")
+                    cfg.Links = GetMultipleFields(strCache, pos, keyword);
+                else if (keyword == "filter")
                 {
-                    cfg.Filters.push_back(ParseFilter(strCache, pos, keyword));
+                    cfg.Filters.push_back(BuildFilterConfig(strCache, pos, keyword, cfg.Name, isExternal));
                 }
             }
 
             pos = strCache.find_first_not_of("\r\n", eol);
             if (pos == NPOS)
                 break;
+        }
+        return cfg;
+    }
+
+    CMakePlatform::FilterConfig CMakePlatform::BuildFilterConfig(const std::string& strCache, size_t& outPos, const std::string& keyword, const std::string& projectName, bool isExternal)
+    {
+        std::stringstream out;
+        size_t pos = outPos;
+        FilterConfig cfg;
+        while (pos != NPOS)
+        {
+            size_t eol = strCache.find_first_of("\r\n", pos);
+            std::string line = strCache.substr(pos, eol - pos);
+
+            std::string keyword;
+            if (ContainsKeyword(line, keyword, KeywordType::FILTER))
+            {
+                if (keyword == "filter")
+                    cfg.FilterParameter = ParseField(line, keyword);
+                else if (keyword == "defines")
+                    cfg.Defines = GetMultipleFields(strCache, pos, keyword);
+                else if (keyword == "files")
+                {
+                    std::vector<std::string> out = ParseMultipleFields(strCache, pos, keyword);
+                    for (auto& file : out)
+                    {
+                        std::string line = file;
+                        if (file.find("*") != NPOS)
+                        {
+                            std::vector<std::string> allFilesWithExtension;
+                            size_t extensionPos = line.find_first_of(".");
+                            std::string extension = line;
+                            extension.erase(0, extensionPos);
+                            if (isExternal)
+                                allFilesWithExtension = GetAllFilesWithExtension(line, extension, projectName);
+                            else
+                                allFilesWithExtension = GetAllFilesWithExtension(line, extension);
+                            for (auto& fileWithExtension : allFilesWithExtension)
+                            {
+                                cfg.Files.push_back(fileWithExtension);
+                            }
+                        }
+                        else
+                        {
+                            cfg.Files.push_back(line);
+                        }
+                    }
+                }
+                else if (keyword == "includedirs")
+                {
+                    std::vector<std::string> out = ParseMultipleFields(strCache, pos, keyword);
+                    for (auto& dir : out)
+                    {
+                        std::string line = dir;
+                        std::string keyword;
+                        if (ContainsKeyword(line, keyword, KeywordType::FILEPATH))
+                        {
+                            GetCMakeSyntax(keyword, line);
+                        }
+                        cfg.IncludedDirectories.push_back(line);
+                    }
+                }
+                else if (keyword == "links")
+                    cfg.Links = GetMultipleFields(strCache, pos, keyword);
+            }
+            size_t nextLinePos = strCache.find_first_not_of("\r\n", eol);
+            if (nextLinePos != NPOS)
+            {
+                size_t nextEOL = strCache.find_first_of("\r\n", nextLinePos);
+                std::string nextLine = strCache.substr(nextLinePos, nextEOL - nextLinePos);
+                if (nextLine.find("filter") != NPOS)
+                {
+                    outPos = nextLinePos;
+                    break;
+                }
+            }
+            else
+            {
+                break;
+            }
+
+            pos = nextLinePos;
+
         }
         return cfg;
     }
@@ -521,28 +552,94 @@ namespace Prebuild
             for (auto& filter : cfg.Filters)
                 ss << BuildFilter(filter, cfg.Name);
         }
+
         return ss.str();
     }
 
-    std::string CMakePlatform::BuildFilter(FilterConfig& cfg, const std::string& target)
+    std::string CMakePlatform::BuildFilter(const FilterConfig& cfg, const std::string& target)
+    {
+        std::stringstream ss;
+
+        if (cfg.FilterParameter.find("system") != NPOS)
+            ss << BuildFilterPlatform(cfg, target);
+        else if (cfg.FilterParameter.find("configurations") != NPOS)
+            ss << BuildFilterConfigurations(cfg, target);
+
+        return ss.str();
+    }
+
+    std::string CMakePlatform::BuildFilterPlatform(const FilterConfig& cfg, const std::string& target)
     {
         std::stringstream ss;
         std::string platform;
-        if (cfg.FilterParameter.find("system") != NPOS)
+        std::string filter = cfg.FilterParameter;
+        filter.erase(0, 7);
+        if (filter == "linux")
+            platform = "UNIX AND NOT APPLE";
+        else if (filter == "windows")
+            platform = "WIN32";
+
+        ss << "if (" << platform << ")\n";
+        if (!cfg.Defines.empty())
         {
-            std::string filter = cfg.FilterParameter;
-            filter.erase(0, 7);
-            if (filter == "linux")
-                platform = "UNIX AND NOT APPLE";
-            else if (filter == "windows")
-                platform = "WIN32";
+            ss << "target_compile_definitions(" << target << "\nPUBLIC\nS";
+            for (auto& define : cfg.Defines)
+                ss << "    " <<define << std::endl;
+            ss << ")\n";
         }
-        ss << "if (" << platform << ")\n"
-           << "    target_compile_definitions(" << target << " PUBLIC\n";
-        for (auto& define : cfg.Defines)
-            ss << "        " << define << std::endl;
-        ss << "    )\n"
-           << "endif(" << platform << ")\n";
+
+        if (!cfg.Links.empty())
+        {
+            ss << "target_link_libraries(" << target << "\n";
+            for (auto& link : cfg.Links)
+                ss << "    " << link << std::endl;
+            ss << ")\n";
+        }
+
+        ss << "endif(" << platform << ")\n";
+
+        return ss.str();
+    }
+
+    std::string CMakePlatform::BuildFilterConfigurations(const FilterConfig& cfg, const std::string& target)
+    {
+        std::stringstream ss;
+        std::string config;
+        std::string filter = cfg.FilterParameter;
+        filter.erase(0, 15);
+        for (auto& configuration : m_WorkspaceConfig.Configurations)
+        {
+            if (filter == configuration)
+                config = configuration;
+        }
+
+        if (config.empty())
+        {
+            std::stringstream msg;
+            msg << "Configuration " << filter << " could not be built!\n"
+                << "Please make sure it exists in the workspace!";
+            Utils::PrintError(msg);
+            return std::string();
+        }
+        ss << "if(CMAKE_BUILD_TYPE STREQUAL " << config << ")\n";
+        if (!cfg.Defines.empty())
+        {
+            ss << "target_compile_definitions(" << target << "\nPUBLIC\n";
+            for (auto& define : cfg.Defines)
+                ss << "    " << define << std::endl;
+            ss << ")\n";
+        }
+
+        if (!cfg.Links.empty())
+        {
+            ss << "target_link_libraries(" << target << "\n";
+            for (auto& link : cfg.Links)
+                ss << "    " << link << std::endl;
+            ss << ")\n";
+        }
+        ss << "endif(CMAKE_BUILD_TYPE STREQUAL " << config << ")\n";
+
+
         return ss.str();
     }
 
@@ -825,6 +922,21 @@ namespace Prebuild
             out.push_back(line);
 
             pos = strCache.find_first_not_of("\r\n", eol);
+        }
+        return out;
+    }
+
+    std::vector<std::string> CMakePlatform::GetMultipleFields(const std::string& strCache, size_t& outPos, const std::string& keyword)
+    {
+        std::vector<std::string> out;
+
+        if (IsSetForMultipleParameters(strCache, outPos))
+            out = ParseMultipleFields(strCache, outPos, keyword);
+        else
+        {
+            size_t eol = strCache.find_first_of("\r\n", outPos);
+            std::string line = strCache.substr(outPos, eol - outPos);
+            out.push_back(ParseField(line, keyword));
         }
         return out;
     }

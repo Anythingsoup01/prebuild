@@ -35,6 +35,8 @@ namespace Prebuild
             LanguageType Language;
             KindType Kind;
 
+            std::string PrecompiledHeader;
+
             std::vector<std::string> Files;
             std::vector<std::string> IncludedDirectories;
             std::vector<std::string> Links;

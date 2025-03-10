@@ -290,6 +290,8 @@ namespace Prebuild
                     cfg.Dialect = ParseField(line, keyword);
                 if (keyword == "kind")
                     cfg.Kind = StringToKindType(ParseField(line, keyword));
+                if (keyword == "pch")
+                    cfg.PrecompiledHeader = ParseField(line, keyword);
                 if (keyword == "includedirs")
                 {
                     std::vector<std::string> out = ParseMultipleFields(strCache, pos, keyword);
@@ -477,6 +479,11 @@ namespace Prebuild
             }
             default:
                 break;
+        }
+
+        if (!cfg.PrecompiledHeader.empty())
+        {
+            ss << "target_precompile_headers(" <<cfg.Name << " PUBLIC " << cfg.PrecompiledHeader << ")\n";
         }
 
 
@@ -892,7 +899,7 @@ namespace Prebuild
     void CMakePlatform::GetCMakeSyntax(const std::string& keyword, std::string& line)
     {
         std::string outKeyword;
-        if (keyword == "$(ROOTDIR)")
+        if (keyword == "$(WORKSPACEDIR)")
             outKeyword = "${CMAKE_SOURCE_DIR}";
 
         std::string out = line;

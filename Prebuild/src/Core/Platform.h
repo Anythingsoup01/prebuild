@@ -61,12 +61,13 @@ namespace Prebuild
             "defines",
         };
 
-        const char* ProjectKeywords[8]
+        const char* ProjectKeywords[9]
         {
             "project",
             "language",
             "dialect",
             "kind",
+            "pch",
             "files",
             "includedirs",
             "links",
@@ -79,7 +80,7 @@ namespace Prebuild
             "defines",
         };
 
-        const char* AllKeywords[11]
+        const char* AllKeywords[12]
         {
             "workspace",
             "architecture",
@@ -88,15 +89,16 @@ namespace Prebuild
             "language",
             "dialect",
             "kind",
+            "pch",
             "files",
             "includedirs",
             "links",
             "filter",
         };
 
-        const char* PathKeywords[1] = 
+        const char* PathKeywords[1] =
         {
-            "$(ROOTDIR)",
+            "$(WORKSPACEDIR)",
         };
     };
 }

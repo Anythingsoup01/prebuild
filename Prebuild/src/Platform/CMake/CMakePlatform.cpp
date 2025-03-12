@@ -314,47 +314,6 @@ namespace Prebuild
                     cfg.FilterParameter = ParseField(line, keyword);
                 else if (keyword == "defines")
                     cfg.Defines = GetMultipleFields(strCache, pos, keyword);
-                else if (keyword == "files")
-                {
-                    std::vector<std::string> out = ParseMultipleFields(strCache, pos, keyword);
-                    for (auto& file : out)
-                    {
-                        std::string line = file;
-                        if (file.find("*") != NPOS)
-                        {
-                            std::vector<std::string> allFilesWithExtension;
-                            size_t extensionPos = line.find_first_of(".");
-                            std::string extension = line;
-                            extension.erase(0, extensionPos);
-                            if (isExternal)
-                                allFilesWithExtension = GetAllFilesWithExtension(line, extension, projectName);
-                            else
-                                allFilesWithExtension = GetAllFilesWithExtension(line, extension);
-                            for (auto& fileWithExtension : allFilesWithExtension)
-                            {
-                                cfg.Files.push_back(fileWithExtension);
-                            }
-                        }
-                        else
-                        {
-                            cfg.Files.push_back(line);
-                        }
-                    }
-                }
-                else if (keyword == "includedirs")
-                {
-                    std::vector<std::string> out = ParseMultipleFields(strCache, pos, keyword);
-                    for (auto& dir : out)
-                    {
-                        std::string line = dir;
-                        std::string keyword;
-                        if (ContainsKeyword(line, keyword, KeywordType::FILEPATH))
-                        {
-                            GetCMakeSyntax(keyword, line);
-                        }
-                        cfg.IncludedDirectories.push_back(line);
-                    }
-                }
                 else if (keyword == "links")
                     cfg.Links = GetMultipleFields(strCache, pos, keyword);
             }
@@ -793,6 +752,8 @@ namespace Prebuild
         if (keyword == "files")
             return true;
         if (keyword == "includedirs")
+            return true;
+        if (keyword == "links")
             return true;
         return false;
     }

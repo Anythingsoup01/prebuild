@@ -386,13 +386,14 @@ namespace Prebuild
 
         ss << "cmake_minimum_required(VERSION " << m_Version << ")\n"
            << "set(CMAKE_EXPORT_COMPILE_COMMANDS ON)\n"
-           << "project(" << m_WorkspaceConfig.Name << " LANGUAGES" << lss.str() << ")\n"
-           << "set(GDEFINES\n";
-           for (auto& def : m_WorkspaceConfig.Defines)
+           << "project(" << m_WorkspaceConfig.Name << " LANGUAGES" << lss.str() << ")\n";
+        if (!m_WorkspaceConfig.Defines.empty())
+        {
+            ss << "set(GDEFINES\n";
+            for (auto& def : m_WorkspaceConfig.Defines)
                ss << "    " << def << std::endl;
-
-        ss << ")\n\n";
-
+            ss << ")\n\n";
+        }
         for (auto& cfg :m_Projects.InlineProjects)
             ss << BuildProject(cfg);
 

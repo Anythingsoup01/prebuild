@@ -54,49 +54,54 @@ namespace Prebuild
             FILEPATH,
         };
 
-        const char* WorkspaceKeywords[3] =
+        const char* WorkspaceKeywords[4] =
         {
             "workspace",
             "architecture",
+            "configurations",
             "defines",
         };
 
-        const char* ProjectKeywords[8]
+        const char* ProjectKeywords[9]
         {
             "project",
             "language",
             "dialect",
             "kind",
+            "pch",
             "files",
             "includedirs",
             "links",
             "filter",
         };
 
-        const char* FilterKeywords[2]
+        const char* FilterKeywords[3]
         {
             "filter",
             "defines",
+            "links",
         };
 
-        const char* AllKeywords[11]
+        const char* AllKeywords[13]
         {
             "workspace",
             "architecture",
+            "configurations",
             "defines",
             "project",
             "language",
             "dialect",
             "kind",
+            "pch",
             "files",
             "includedirs",
             "links",
             "filter",
         };
 
-        const char* PathKeywords[1] = 
+        const char* PathKeywords[1] =
         {
-            "$(ROOTDIR)",
+            "$(WORKSPACEDIR)",
         };
     };
 }

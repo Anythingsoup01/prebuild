@@ -75,7 +75,7 @@ namespace Prebuild
                         return;
                     }
 
-                    ProjectConfig cfg = BuildProjectConfig(projStr, true);
+                    ProjectConfig cfg = BuildProjectConfig(projStr, true, dir);
                     m_Projects.ExternalProjects.emplace(dir, cfg);
                     break;
                 }
@@ -178,54 +178,6 @@ namespace Prebuild
         return ss.str();
     }
 
-    CMakePlatform::FilterConfig CMakePlatform::ParseFilter(const std::string& strCache, size_t& outPos, const std::string& keyword)
-    {
-        std::stringstream out;
-        size_t pos = outPos;
-        FilterConfig cfg;
-        while (pos != NPOS)
-        {
-            size_t eol = strCache.find_first_of("\r\n", pos);
-            std::string line = strCache.substr(pos, eol - pos);
-
-            std::string keyword;
-            if (ContainsKeyword(line, keyword, KeywordType::FILTER))
-            {
-                if (keyword == "filter")
-                {
-                    cfg.FilterParameter = ParseField(line, keyword);
-                }
-
-                if (keyword == "defines")
-                {
-                    if (IsSetForMultipleParameters(strCache, pos))
-                        cfg.Defines = ParseMultipleFields(strCache, pos, keyword);
-                    else
-                        cfg.Defines.push_back(ParseField(line, keyword));
-                }
-            }
-            size_t nextLinePos = strCache.find_first_not_of("\r\n", eol);
-            if (nextLinePos != NPOS)
-            {
-                size_t nextEOL = strCache.find_first_of("\r\n", nextLinePos);
-                std::string nextLine = strCache.substr(nextLinePos, nextEOL - nextLinePos);
-                if (nextLine.find("filter") != NPOS)
-                {
-                    outPos = nextLinePos;
-                    break;
-                }
-            }
-            else
-            {
-                break;
-            }
-
-            pos = nextLinePos;
-
-        }
-        return cfg;
-    }
-
 
     // BUILDING CONFIGS ------------------------------------------------------------------------------------
 
@@ -245,32 +197,30 @@ namespace Prebuild
             {
                 if (keyword == "workspace")
                     cfg.Name = ParseField(line, keyword);
-                if (keyword == "architecture")
+                else if (keyword == "architecture")
                     cfg.Architecture = StringToArchitectureType(ParseField(line, keyword));
-                if (keyword == "configurations")
-                {
-                    if (IsSetForMultipleParameters(file, pos))
-                        cfg.Configurations = ParseMultipleFields(file, pos, keyword);
-                    else
- ;                      cfg.Configurations.push_back(ParseField(line, keyword));
-                }
-                if (keyword == "defines")
-                {
-                    if (IsSetForMultipleParameters(file, pos))
-                        cfg.Defines = ParseMultipleFields(file, pos, keyword);
-                    else
-                        cfg.Defines.push_back(ParseField(line, keyword));
-                }
+                else if (keyword == "configurations")
+                   cfg.Configurations = GetMultipleFields(file, pos, keyword);
+                else if (keyword == "defines")
+                    cfg.Defines = GetMultipleFields(file, pos, keyword);
             }
 
             pos = file.find_first_not_of("\r\n", eol);
             if (pos == NPOS)
                 break;
         }
+
+        if (cfg.Configurations.empty())
+        {
+            cfg.Configurations.push_back("Debug");
+            cfg.Configurations.push_back("Release");
+        }
+
+        cfg.FilePath = std::filesystem::current_path();
         m_WorkspaceConfig = cfg;
     }
 
-    CMakePlatform::ProjectConfig CMakePlatform::BuildProjectConfig(const std::string& strCache, bool isExternal)
+    CMakePlatform::ProjectConfig CMakePlatform::BuildProjectConfig(const std::string& strCache, bool isExternal, const std::string& dir)
     {
         ProjectConfig cfg;
         size_t pos = 0;
@@ -284,28 +234,34 @@ namespace Prebuild
             {
                 if (keyword == "project")
                     cfg.Name = ParseField(line, keyword);
-                if (keyword == "language")
+                else if (keyword == "language")
                     cfg.Language = StringToLanguageType(ParseField(line, keyword));
-                if (keyword == "dialect")
+                else if (keyword == "dialect")
                     cfg.Dialect = ParseField(line, keyword);
-                if (keyword == "kind")
+                else if (keyword == "kind")
                     cfg.Kind = StringToKindType(ParseField(line, keyword));
-                if (keyword == "includedirs")
+                else if (keyword == "pch")
+                    cfg.PrecompiledHeader = ParseField(line, keyword);
+                else if (keyword == "includedirs")
                 {
                     std::vector<std::string> out = ParseMultipleFields(strCache, pos, keyword);
                     for (auto& dir : out)
                     {
                         std::string line = dir;
                         std::string keyword;
-                        std::string outSyntax;
                         if (ContainsKeyword(line, keyword, KeywordType::FILEPATH))
                         {
-                            GetCMakeSyntax(keyword, line);
+                            std::string path = line;
+                            path.erase(0, keyword.length());
+                            keyword = GetCMakeSyntax(keyword);
+                            std::stringstream liness;
+                            liness << keyword << path;
+                            line = liness.str();
                         }
                         cfg.IncludedDirectories.push_back(line);
                     }
                 }
-                if (keyword == "files")
+                else if (keyword == "files")
                 {
                     std::vector<std::string> out = ParseMultipleFields(strCache, pos, keyword);
                     for (auto& file : out)
@@ -313,12 +269,20 @@ namespace Prebuild
                         std::string line = file;
                         if (file.find("*") != NPOS)
                         {
+                            /*
+                                if Line contains PathKeywords:
+                                    Corralate keyword to CMakeKeyword
+                                    set directory to focus there
+                                    Append CMakeKeyword to filepath while removing all up to the desired folder
+                            */
                             std::vector<std::string> allFilesWithExtension;
                             size_t extensionPos = line.find_first_of(".");
                             std::string extension = line;
                             extension.erase(0, extensionPos);
                             if (isExternal)
-                                allFilesWithExtension = GetAllFilesWithExtension(line, extension, cfg.Name);
+                            {
+                                allFilesWithExtension = GetAllFilesWithExtension(line, extension, dir);
+                            }
                             else
                                 allFilesWithExtension = GetAllFilesWithExtension(line, extension);
                             for (auto& fileWithExtension : allFilesWithExtension)
@@ -332,17 +296,59 @@ namespace Prebuild
                         }
                     }
                 }
-                if (keyword == "links")
-                    cfg.Links = ParseMultipleFields(strCache, pos, keyword);
-                if (keyword == "filter")
+                else if (keyword == "links")
+                    cfg.Links = GetMultipleFields(strCache, pos, keyword);
+                else if (keyword == "filter")
                 {
-                    cfg.Filters.push_back(ParseFilter(strCache, pos, keyword));
+                    cfg.Filters.push_back(BuildFilterConfig(strCache, pos, keyword, cfg.Name, isExternal));
                 }
             }
 
             pos = strCache.find_first_not_of("\r\n", eol);
             if (pos == NPOS)
                 break;
+        }
+        return cfg;
+    }
+
+    CMakePlatform::FilterConfig CMakePlatform::BuildFilterConfig(const std::string& strCache, size_t& outPos, const std::string& keyword, const std::string& projectName, bool isExternal)
+    {
+        std::stringstream out;
+        size_t pos = outPos;
+        FilterConfig cfg;
+        while (pos != NPOS)
+        {
+            size_t eol = strCache.find_first_of("\r\n", pos);
+            std::string line = strCache.substr(pos, eol - pos);
+
+            std::string keyword;
+            if (ContainsKeyword(line, keyword, KeywordType::FILTER))
+            {
+                if (keyword == "filter")
+                    cfg.FilterParameter = ParseField(line, keyword);
+                else if (keyword == "defines")
+                    cfg.Defines = GetMultipleFields(strCache, pos, keyword);
+                else if (keyword == "links")
+                    cfg.Links = GetMultipleFields(strCache, pos, keyword);
+            }
+            size_t nextLinePos = strCache.find_first_not_of("\r\n", eol);
+            if (nextLinePos != NPOS)
+            {
+                size_t nextEOL = strCache.find_first_of("\r\n", nextLinePos);
+                std::string nextLine = strCache.substr(nextLinePos, nextEOL - nextLinePos);
+                if (nextLine.find("filter") != NPOS)
+                {
+                    outPos = nextLinePos;
+                    break;
+                }
+            }
+            else
+            {
+                break;
+            }
+
+            pos = nextLinePos;
+
         }
         return cfg;
     }
@@ -380,13 +386,14 @@ namespace Prebuild
 
         ss << "cmake_minimum_required(VERSION " << m_Version << ")\n"
            << "set(CMAKE_EXPORT_COMPILE_COMMANDS ON)\n"
-           << "project(" << m_WorkspaceConfig.Name << " LANGUAGES" << lss.str() << ")\n"
-           << "set(GDEFINES\n";
-           for (auto& def : m_WorkspaceConfig.Defines)
+           << "project(" << m_WorkspaceConfig.Name << " LANGUAGES" << lss.str() << ")\n";
+        if (!m_WorkspaceConfig.Defines.empty())
+        {
+            ss << "set(GDEFINES\n";
+            for (auto& def : m_WorkspaceConfig.Defines)
                ss << "    " << def << std::endl;
-
-        ss << ")\n\n";
-
+            ss << ")\n\n";
+        }
         for (auto& cfg :m_Projects.InlineProjects)
             ss << BuildProject(cfg);
 
@@ -413,7 +420,6 @@ namespace Prebuild
 
         for (auto dir : m_NonPrebuildProject)
         {
-            Utils::PrintWarning(dir);
             ss << "add_subdirectory(" << dir << ")\n";
         }
 
@@ -479,6 +485,11 @@ namespace Prebuild
                 break;
         }
 
+        if (!cfg.PrecompiledHeader.empty())
+        {
+            ss << "target_precompile_headers(" <<cfg.Name << " PUBLIC " << cfg.PrecompiledHeader << ")\n";
+        }
+
 
         if (!cfg.IncludedDirectories.empty())
         {
@@ -514,26 +525,94 @@ namespace Prebuild
             for (auto& filter : cfg.Filters)
                 ss << BuildFilter(filter, cfg.Name);
         }
+
         return ss.str();
     }
 
-    std::string CMakePlatform::BuildFilter(FilterConfig& cfg, const std::string& target)
+    std::string CMakePlatform::BuildFilter(const FilterConfig& cfg, const std::string& target)
     {
         std::stringstream ss;
+
         if (cfg.FilterParameter.find("system") != NPOS)
+            ss << BuildFilterPlatform(cfg, target);
+        else if (cfg.FilterParameter.find("configurations") != NPOS)
+            ss << BuildFilterConfigurations(cfg, target);
+
+        return ss.str();
+    }
+
+    std::string CMakePlatform::BuildFilterPlatform(const FilterConfig& cfg, const std::string& target)
+    {
+        std::stringstream ss;
+        std::string platform;
+        std::string filter = cfg.FilterParameter;
+        filter.erase(0, 7);
+        if (filter == "linux")
+            platform = "UNIX AND NOT APPLE";
+        else if (filter == "windows")
+            platform = "WIN32";
+
+        ss << "if (" << platform << ")\n";
+        if (!cfg.Defines.empty())
         {
-            std::string filter = cfg.FilterParameter;
-            filter.erase(0, 7);
-            if (filter == "linux")
-                ss << "if(UNIX AND NOT APPLE)\n";
-            else if (filter == "windows")
-                ss << "if(WIN32)\n";
+            ss << "target_compile_definitions(" << target << "\nPUBLIC\n";
+            for (auto& define : cfg.Defines)
+                ss << "    " <<define << std::endl;
+            ss << ")\n";
         }
 
-        ss << "    target_compile_definitions(" << target << " PUBLIC\n";
-        for (auto& define : cfg.Defines)
-            ss << "        " << define << std::endl;
-        ss << "    )\n)";
+        if (!cfg.Links.empty())
+        {
+            ss << "target_link_libraries(" << target << "\n";
+            for (auto& link : cfg.Links)
+                ss << "    " << link << std::endl;
+            ss << ")\n";
+        }
+
+        ss << "endif(" << platform << ")\n";
+
+        return ss.str();
+    }
+
+    std::string CMakePlatform::BuildFilterConfigurations(const FilterConfig& cfg, const std::string& target)
+    {
+        std::stringstream ss;
+        std::string config;
+        std::string filter = cfg.FilterParameter;
+        filter.erase(0, 15);
+        for (auto& configuration : m_WorkspaceConfig.Configurations)
+        {
+            if (filter == configuration)
+                config = configuration;
+        }
+
+        if (config.empty())
+        {
+            std::stringstream msg;
+            msg << "Configuration " << filter << " could not be built!\n"
+                << "Please make sure it exists in the workspace!";
+            Utils::PrintError(msg);
+            return std::string();
+        }
+        ss << "if(CMAKE_BUILD_TYPE STREQUAL " << config << ")\n";
+        if (!cfg.Defines.empty())
+        {
+            ss << "target_compile_definitions(" << target << "\nPUBLIC\n";
+            for (auto& define : cfg.Defines)
+                ss << "    " << define << std::endl;
+            ss << ")\n";
+        }
+
+        if (!cfg.Links.empty())
+        {
+            ss << "target_link_libraries(" << target << "\n";
+            for (auto& link : cfg.Links)
+                ss << "    " << link << std::endl;
+            ss << ")\n";
+        }
+        ss << "endif(CMAKE_BUILD_TYPE STREQUAL " << config << ")\n";
+
+
         return ss.str();
     }
 
@@ -688,6 +767,8 @@ namespace Prebuild
             return true;
         if (keyword == "includedirs")
             return true;
+        if (keyword == "links")
+            return true;
         return false;
     }
 
@@ -820,17 +901,41 @@ namespace Prebuild
         return out;
     }
 
+    std::vector<std::string> CMakePlatform::GetMultipleFields(const std::string& strCache, size_t& outPos, const std::string& keyword)
+    {
+        std::vector<std::string> out;
+
+        if (IsSetForMultipleParameters(strCache, outPos))
+            out = ParseMultipleFields(strCache, outPos, keyword);
+        else
+        {
+            size_t eol = strCache.find_first_of("\r\n", outPos);
+            std::string line = strCache.substr(outPos, eol - outPos);
+            out.push_back(ParseField(line, keyword));
+        }
+        return out;
+    }
+
     std::vector<std::string> CMakePlatform::GetAllFilesWithExtension(const std::string& line, const std::string& extension, const std::string folderName)
     {
         std::vector<std::string> out;
 
         std::string folderPath = line;
+        std::string keyword;
+        bool hasFolderName = !folderName.empty();
+        bool hasKeyword = ContainsKeyword(folderPath, keyword, KeywordType::FILEPATH);
+
         size_t extensionPos = folderPath.find("*");
         folderPath.erase(extensionPos, folderPath.length());
 
         std::filesystem::path currentWorkingDirectory;
-        if (folderName.empty())
+        if (hasKeyword)
         {
+            currentWorkingDirectory = std::filesystem::current_path();
+        }
+        else if (!hasFolderName)
+        {
+
             std::stringstream ss;
             ss << std::filesystem::current_path().string() << "/" << folderPath;
             currentWorkingDirectory = ss.str();
@@ -843,18 +948,47 @@ namespace Prebuild
         }
 
 
-        for (const auto& entry : std::filesystem::recursive_directory_iterator(currentWorkingDirectory))
+
+
+        // $(WORKSPACEDIR)/path/to/file/*.cpp
+
+
+        if (hasKeyword)
         {
-            if (std::filesystem::is_regular_file(entry) && entry.path().extension() == extension)
+            folderPath.erase(0, keyword.length());
+
+            std::stringstream pathSS;
+            pathSS << currentWorkingDirectory.string() << folderPath;
+
+            std::filesystem::path actualPath = pathSS.str();
+
+            for (const auto& entry : std::filesystem::recursive_directory_iterator(actualPath))
             {
-                std::stringstream ss;
-                std::string path = entry.path().string();
-                size_t relativePos = path.find(folderPath);
-                path.erase(0, relativePos);
-                out.push_back(path);
+                if (std::filesystem::is_regular_file(entry) && entry.path().extension() == extension)
+                {
+                    std::string path = entry.path().string();
+                    size_t relativePos = path.find(folderPath);
+                    path.erase(0, relativePos);
+                    std::stringstream ss;
+                    ss << GetCMakeSyntax(keyword) << path;
+                    out.push_back(ss.str());
+                }
             }
         }
-
+        else
+        {
+            for (const auto& entry : std::filesystem::recursive_directory_iterator(currentWorkingDirectory))
+            {
+                if (std::filesystem::is_regular_file(entry) && entry.path().extension() == extension)
+                {
+                    std::stringstream ss;
+                    std::string path = entry.path().string();
+                    size_t relativePos = path.find(folderPath);
+                    path.erase(0, relativePos);
+                    out.push_back(path);
+                }
+            }
+        }
         return out;
     }
 
@@ -887,17 +1021,12 @@ namespace Prebuild
             return KindType::CONSOLEAPP;
         return KindType::NONE;
     }
-    void CMakePlatform::GetCMakeSyntax(const std::string& keyword, std::string& line)
+    std::string CMakePlatform::GetCMakeSyntax(const std::string& keyword)
     {
         std::string outKeyword;
-        if (keyword == "$(ROOTDIR)")
+        if (keyword == "$(WORKSPACEDIR)")
             outKeyword = "${CMAKE_SOURCE_DIR}";
 
-        std::string out = line;
-        out.erase(0, keyword.length());
-        std::stringstream ss;
-        ss << outKeyword << out;
-        line = ss.str();
-
+        return outKeyword;
     }
 }

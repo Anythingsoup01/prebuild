@@ -15,6 +15,7 @@ namespace Prebuild
         {
             std::string Name;
             ArchitectureType Architecture;
+            std::filesystem::path FilePath;
 
             std::vector<std::string> Configurations;
             std::vector<std::string> Defines;
@@ -59,7 +60,7 @@ namespace Prebuild
         std::string ParseProject(size_t& outPos, std::string dir = "");
 
         void BuildWorkspaceConfig();
-        ProjectConfig BuildProjectConfig(const std::string& strCache, bool isExternal);
+        ProjectConfig BuildProjectConfig(const std::string& strCache, bool isExternal, const std::string& dir = "");
         FilterConfig BuildFilterConfig(const std::string& strCache, size_t& outPos, const std::string& keyword, const std::string& projectName, bool isExternal);
 
         void Build();
@@ -88,7 +89,7 @@ namespace Prebuild
 
         ProjectType CheckProjectType(const std::string& line);
 
-        void GetCMakeSyntax(const std::string& keyword,std::string& outLine);
+        std::string GetCMakeSyntax(const std::string& keyword);
 
     private:
         std::string m_Version;

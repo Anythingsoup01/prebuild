@@ -75,7 +75,7 @@ namespace Prebuild
                         return;
                     }
 
-                    ProjectConfig cfg = BuildProjectConfig(projStr, true);
+                    ProjectConfig cfg = BuildProjectConfig(projStr, true, dir);
                     m_Projects.ExternalProjects.emplace(dir, cfg);
                     break;
                 }
@@ -216,10 +216,11 @@ namespace Prebuild
             cfg.Configurations.push_back("Release");
         }
 
+        cfg.FilePath = std::filesystem::current_path();
         m_WorkspaceConfig = cfg;
     }
 
-    CMakePlatform::ProjectConfig CMakePlatform::BuildProjectConfig(const std::string& strCache, bool isExternal)
+    CMakePlatform::ProjectConfig CMakePlatform::BuildProjectConfig(const std::string& strCache, bool isExternal, const std::string& dir)
     {
         ProjectConfig cfg;
         size_t pos = 0;
@@ -250,7 +251,12 @@ namespace Prebuild
                         std::string keyword;
                         if (ContainsKeyword(line, keyword, KeywordType::FILEPATH))
                         {
-                            GetCMakeSyntax(keyword, line);
+                            std::string path = line;
+                            path.erase(0, keyword.length());
+                            keyword = GetCMakeSyntax(keyword);
+                            std::stringstream liness;
+                            liness << keyword << path;
+                            line = liness.str();
                         }
                         cfg.IncludedDirectories.push_back(line);
                     }
@@ -263,12 +269,20 @@ namespace Prebuild
                         std::string line = file;
                         if (file.find("*") != NPOS)
                         {
+                            /*
+                                if Line contains PathKeywords:
+                                    Corralate keyword to CMakeKeyword
+                                    set directory to focus there
+                                    Append CMakeKeyword to filepath while removing all up to the desired folder
+                            */
                             std::vector<std::string> allFilesWithExtension;
                             size_t extensionPos = line.find_first_of(".");
                             std::string extension = line;
                             extension.erase(0, extensionPos);
                             if (isExternal)
-                                allFilesWithExtension = GetAllFilesWithExtension(line, extension, cfg.Name);
+                            {
+                                allFilesWithExtension = GetAllFilesWithExtension(line, extension, dir);
+                            }
                             else
                                 allFilesWithExtension = GetAllFilesWithExtension(line, extension);
                             for (auto& fileWithExtension : allFilesWithExtension)
@@ -405,7 +419,6 @@ namespace Prebuild
 
         for (auto dir : m_NonPrebuildProject)
         {
-            Utils::PrintWarning(dir);
             ss << "add_subdirectory(" << dir << ")\n";
         }
 
@@ -541,7 +554,7 @@ namespace Prebuild
         ss << "if (" << platform << ")\n";
         if (!cfg.Defines.empty())
         {
-            ss << "target_compile_definitions(" << target << "\nPUBLIC\nS";
+            ss << "target_compile_definitions(" << target << "\nPUBLIC\n";
             for (auto& define : cfg.Defines)
                 ss << "    " <<define << std::endl;
             ss << ")\n";
@@ -907,12 +920,21 @@ namespace Prebuild
         std::vector<std::string> out;
 
         std::string folderPath = line;
+        std::string keyword;
+        bool hasFolderName = !folderName.empty();
+        bool hasKeyword = ContainsKeyword(folderPath, keyword, KeywordType::FILEPATH);
+
         size_t extensionPos = folderPath.find("*");
         folderPath.erase(extensionPos, folderPath.length());
 
         std::filesystem::path currentWorkingDirectory;
-        if (folderName.empty())
+        if (hasKeyword)
         {
+            currentWorkingDirectory = std::filesystem::current_path();
+        }
+        else if (!hasFolderName)
+        {
+
             std::stringstream ss;
             ss << std::filesystem::current_path().string() << "/" << folderPath;
             currentWorkingDirectory = ss.str();
@@ -925,18 +947,47 @@ namespace Prebuild
         }
 
 
-        for (const auto& entry : std::filesystem::recursive_directory_iterator(currentWorkingDirectory))
+
+
+        // $(WORKSPACEDIR)/path/to/file/*.cpp
+
+
+        if (hasKeyword)
         {
-            if (std::filesystem::is_regular_file(entry) && entry.path().extension() == extension)
+            folderPath.erase(0, keyword.length());
+
+            std::stringstream pathSS;
+            pathSS << currentWorkingDirectory.string() << folderPath;
+
+            std::filesystem::path actualPath = pathSS.str();
+
+            for (const auto& entry : std::filesystem::recursive_directory_iterator(actualPath))
             {
-                std::stringstream ss;
-                std::string path = entry.path().string();
-                size_t relativePos = path.find(folderPath);
-                path.erase(0, relativePos);
-                out.push_back(path);
+                if (std::filesystem::is_regular_file(entry) && entry.path().extension() == extension)
+                {
+                    std::string path = entry.path().string();
+                    size_t relativePos = path.find(folderPath);
+                    path.erase(0, relativePos);
+                    std::stringstream ss;
+                    ss << GetCMakeSyntax(keyword) << path;
+                    out.push_back(ss.str());
+                }
             }
         }
-
+        else
+        {
+            for (const auto& entry : std::filesystem::recursive_directory_iterator(currentWorkingDirectory))
+            {
+                if (std::filesystem::is_regular_file(entry) && entry.path().extension() == extension)
+                {
+                    std::stringstream ss;
+                    std::string path = entry.path().string();
+                    size_t relativePos = path.find(folderPath);
+                    path.erase(0, relativePos);
+                    out.push_back(path);
+                }
+            }
+        }
         return out;
     }
 
@@ -969,17 +1020,12 @@ namespace Prebuild
             return KindType::CONSOLEAPP;
         return KindType::NONE;
     }
-    void CMakePlatform::GetCMakeSyntax(const std::string& keyword, std::string& line)
+    std::string CMakePlatform::GetCMakeSyntax(const std::string& keyword)
     {
         std::string outKeyword;
         if (keyword == "$(WORKSPACEDIR)")
             outKeyword = "${CMAKE_SOURCE_DIR}";
 
-        std::string out = line;
-        out.erase(0, keyword.length());
-        std::stringstream ss;
-        ss << outKeyword << out;
-        line = ss.str();
-
+        return outKeyword;
     }
 }

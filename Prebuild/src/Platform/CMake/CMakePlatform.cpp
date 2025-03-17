@@ -296,6 +296,8 @@ namespace Prebuild
                         }
                     }
                 }
+                else if (keyword == "defines")
+                    cfg.Defines = GetMultipleFields(strCache, pos, keyword);
                 else if (keyword == "links")
                     cfg.Links = GetMultipleFields(strCache, pos, keyword);
                 else if (keyword == "filter")

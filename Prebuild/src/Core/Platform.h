@@ -62,7 +62,7 @@ namespace Prebuild
             "defines",
         };
 
-        const char* ProjectKeywords[9]
+        const char* ProjectKeywords[10]
         {
             "project",
             "language",
@@ -73,6 +73,7 @@ namespace Prebuild
             "includedirs",
             "links",
             "filter",
+            "defines"
         };
 
         const char* FilterKeywords[3]

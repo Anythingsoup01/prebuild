@@ -519,7 +519,7 @@ namespace Prebuild
 
         if (!cfg.Defines.empty())
         {
-            ss << "target_compile_defines(" << cfg.Name << " PUBLIC\n";
+            ss << "target_compile_definitions(" << cfg.Name << " PUBLIC\n";
             for (auto& define : cfg.Defines)
                 ss << "    " << define << std::endl;
             ss << ")\n\n";

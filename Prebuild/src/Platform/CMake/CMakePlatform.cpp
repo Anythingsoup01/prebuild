@@ -515,6 +515,14 @@ namespace Prebuild
             ss << ")\n\n";
         }
 
+        if (!cfg.Defines.empty())
+        {
+            ss << "target_compile_defines(" << cfg.Name << " PUBLIC\n";
+            for (auto& define : cfg.Defines)
+                ss << "    " << define << std::endl;
+            ss << ")\n\n";
+        }
+
         if (!m_WorkspaceConfig.Defines.empty())
         {
             ss << "target_compile_definitions(" << cfg.Name << " PUBLIC GDEFINES)\n";

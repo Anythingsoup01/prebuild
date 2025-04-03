@@ -269,12 +269,6 @@ namespace Prebuild
                         std::string line = file;
                         if (file.find("*") != NPOS)
                         {
-                            /*
-                                if Line contains PathKeywords:
-                                    Corralate keyword to CMakeKeyword
-                                    set directory to focus there
-                                    Append CMakeKeyword to filepath while removing all up to the desired folder
-                            */
                             std::vector<std::string> allFilesWithExtension;
                             size_t extensionPos = line.find_first_of(".");
                             std::string extension = line;
@@ -303,9 +297,11 @@ namespace Prebuild
                 else if (keyword == "filter")
                 {
                     cfg.Filters.push_back(BuildFilterConfig(strCache, pos, keyword, cfg.Name, isExternal));
+                    eol = pos - 1;
                 }
             }
 
+            // Definition bug HERE
             pos = strCache.find_first_not_of("\r\n", eol);
             if (pos == NPOS)
                 break;
@@ -340,18 +336,20 @@ namespace Prebuild
                 std::string nextLine = strCache.substr(nextLinePos, nextEOL - nextLinePos);
                 if (nextLine.find("filter") != NPOS)
                 {
-                    outPos = nextLinePos;
+                    pos = nextLinePos;
                     break;
                 }
             }
             else
             {
+                pos = nextLinePos;
                 break;
             }
 
             pos = nextLinePos;
 
         }
+        outPos = pos;
         return cfg;
     }
 
@@ -509,7 +507,7 @@ namespace Prebuild
         {
             ss << "target_link_libraries(" << cfg.Name << "\n";
 
-            for (auto& src :cfg.Links)
+            for (auto& src : cfg.Links)
             {
                 ss << "    " << src <<  std::endl;
             }
@@ -519,7 +517,7 @@ namespace Prebuild
 
         if (!cfg.Defines.empty())
         {
-            ss << "target_compile_defines(" << cfg.Name << " PUBLIC\n";
+            ss << "target_compile_definitions(" << cfg.Name << " PUBLIC\n";
             for (auto& define : cfg.Defines)
                 ss << "    " << define << std::endl;
             ss << ")\n\n";

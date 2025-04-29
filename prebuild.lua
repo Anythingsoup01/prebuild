@@ -2,8 +2,10 @@ workspace "Prebuild"
 
 project "prebuild"
     language "C++"
-    dialect "17"
+    dialect "20"
     kind "ConsoleApp"
+
+    pch "Prebuild/src/pbpch.h"
 
     files
     {
@@ -13,6 +15,7 @@ project "prebuild"
 
     includedirs
     {
-        "Prebuild/src"
+        "Prebuild/src",
+        "vendor/spdlog/include"
     }
 

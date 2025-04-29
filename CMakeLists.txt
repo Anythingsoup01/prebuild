@@ -5,19 +5,19 @@ set(GDEFINES
 )
 
 set(SRCS
-    Prebuild/src/Platform/CMake/CMakePlatform.cpp
-    Prebuild/src/Core/Utils.cpp
-    Prebuild/src/Core/Platform.cpp
-    Prebuild/src/prebuild.cpp
-    Prebuild/src/Platform/CMake/CMakePlatform.h
-    Prebuild/src/Core/Utils.h
-    Prebuild/src/Core/Platform.h
-    Prebuild/src/Core/Core.h
+    Prebuild/src/Prebuild/Core/BuildSystem.cpp
+    Prebuild/src/Prebuild/Core/Log.cpp
+    Prebuild/src/Prebuild/Core/Prebuild.cpp
+    Prebuild/src/Prebuild/Core/Log.h
+    Prebuild/src/Prebuild/Core/BuildSystem.h
+    Prebuild/src/Prebuild/Core/Core.h
+    Prebuild/src/pbpch.h
 )
 add_executable(prebuild ${SRCS})
-set_property(TARGET prebuild PROPERTY CXX_STANDARD 17)
+set_property(TARGET prebuild PROPERTY CXX_STANDARD 20)
 
 target_include_directories(prebuild PRIVATE
     Prebuild/src
+    vendor/spdlog/include
 )
 

@@ -5,9 +5,11 @@ set(GDEFINES
 )
 
 set(SRCS
+    Prebuild/src/Prebuild/Platform/CMake/CMakeBuildSystem.cpp
     Prebuild/src/Prebuild/Core/BuildSystem.cpp
     Prebuild/src/Prebuild/Core/Log.cpp
     Prebuild/src/Prebuild/Core/Prebuild.cpp
+    Prebuild/src/Prebuild/Platform/CMake/CMakeBuildSystem.h
     Prebuild/src/Prebuild/Core/Log.h
     Prebuild/src/Prebuild/Core/BuildSystem.h
     Prebuild/src/Prebuild/Core/Core.h

@@ -1,6 +1,8 @@
 #include "pbpch.h"
 #include "BuildSystem.h"
 
+#include "Prebuild/Platform/CMake/CMakeBuildSystem.h"
+
 Scope<BuildSystem> BuildSystem::Create(char** arguments)
 {
     System currentSystem = GetSystem(arguments[1]);
@@ -9,7 +11,7 @@ Scope<BuildSystem> BuildSystem::Create(char** arguments)
     {
         case System::CMake:
         {
-            break;
+            return CreateScope<CMakeBuildSystem>(arguments[2]);
         }
         case System::Possum:
         {

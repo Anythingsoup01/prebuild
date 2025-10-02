@@ -1,6 +1,6 @@
 #include <iostream>
-#include "Core/Utils.h"
 #include "Core/Platform.h"
+#include "Core/Utils.h"
 
 
 int main(int argc, char** argv)
@@ -15,14 +15,14 @@ int main(int argc, char** argv)
             break;
         }
         case 2:
-        {
-            Utils::PrintError("Not enough arguments provided! Please provide a version!");
-            break;
-        }
         case 3:
         {
-            std::string version(argv[2]);
-            Prebuild::Platform::Create(system, version);
+            std::filesystem::path currentPath = std::filesystem::current_path();
+            if (argc == 3)
+            {
+                currentPath /= argv[2];
+            }
+            Prebuild::Platform platform(currentPath);
             break;
         }
         default:

@@ -9,84 +9,17 @@
 #include <algorithm>
 #include <string>
 
-#define PB_PRINT(x) //printf("FUNCTION - %s\n", x)
+#ifdef PB_DEBUG
+#define PB_PRINT(x) printf("FUNCTION - %s\n", x)
+#else
+#define PB_PRINT(x)
+#endif
 
 namespace Prebuild
 {
 
-    CMakePlatform::CMakePlatform(const std::string& version)
+    CMakePlatform::CMakePlatform(WorkspaceConfig& workspaceConfig, std::vector<ProjectConfig>& projects)
     {
-        PB_PRINT("Constructor");
-        m_Version = version;
-        m_RootPrebuildString = Utils::GetStringFromFile("prebuild.lua");
-        if (m_RootPrebuildString.empty())
-        {
-            Utils::PrintError("Could not open/find root prebuild file!");
-            return;
-        }
-        if (!CheckSyntax(m_RootPrebuildString))
-        {
-            return;
-        }
-        size_t pos = 0;
-        m_WorkspaceString = ParseWorkspace(pos);
-        if (m_WorkspaceString.empty())
-        {
-            return;
-        }
-        BuildWorkspaceConfig();
-
-        while (pos != NPOS)
-        {
-            size_t eol = m_RootPrebuildString.find_first_of("\r\n", pos);
-            std::string line = m_RootPrebuildString.substr(pos, eol - pos);
-            ProjectType res = CheckProjectType(line);
-
-            switch (res)
-            {
-                case ProjectType::INLINE:
-                {
-                    std::string projStr = ParseProject(pos, std::string());
-                    if (projStr.empty())
-                    {
-                        return;
-                    }
-                    ProjectConfig cfg = BuildProjectConfig(projStr, false);
-                    m_Projects.InlineProjects.push_back(cfg);
-                    break;
-                }
-                case ProjectType::EXTERNAL:
-                {
-                    std::string dir = line;
-
-                    dir.erase(remove_if(dir.begin(), dir.end(), isspace), dir.end());
-                    dir.erase(std::remove(dir.begin(), dir.end(), '\"'), dir.end());
-                    dir.erase(0, 8);
-
-                    std::string projStr = ParseProject(pos, dir);
-                    if (projStr.empty())
-                    {
-                        m_NonPrebuildProject.push_back(dir);
-                        break;
-                    }
-
-                    if(!CheckSyntax(projStr))
-                    {
-                        return;
-                    }
-
-                    ProjectConfig cfg = BuildProjectConfig(projStr, true, dir);
-                    m_Projects.ExternalProjects.emplace(dir, cfg);
-                    break;
-                }
-                default:
-                {
-                    break;
-                }
-            }
-            pos = m_RootPrebuildString.find_first_not_of("\r\n", eol);
-        }
-        Build();
 
     }
 

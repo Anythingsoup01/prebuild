@@ -18,3 +18,8 @@ project "prebuild"
         "Prebuild/src"
     }
 
+    links
+    {
+        "lua",
+    }
+

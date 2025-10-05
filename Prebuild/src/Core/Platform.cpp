@@ -1,9 +1,11 @@
 #include "pbpch.h"
 #include "Platform.h"
 
-#include <csignal>
 #include <signal.h>
-#include <sstream>
+
+#include <lua.hpp>
+
+
 
 namespace Prebuild
 {
@@ -58,6 +60,33 @@ namespace Prebuild
         "$(WORKSPACEDIR)",
     };
 
+
+    struct Optional
+    {
+        int Value = 0;
+        bool HasChanged = false;
+
+        Optional operator++(int)
+        {
+            ++Value;
+            HasChanged = true;
+            return *this;
+        }
+
+        Optional operator--(int)
+        {
+            --Value;
+            HasChanged = true;
+            return *this;
+        }
+
+
+        operator bool()
+        {
+            return HasChanged;
+        }
+    };
+
     static bool StrEqual(const std::string& in, const std::string& check)
     {
         if (strncmp(in.c_str(), check.c_str(), check.length()) == 0)
@@ -68,7 +97,9 @@ namespace Prebuild
 
     Platform::Platform(const std::filesystem::path& searchDirectory)
     {
+        
         m_SearchDirectory = searchDirectory;
+        /*
         std::ifstream rootFile(searchDirectory / "prebuild.lua");
         if(!rootFile.is_open())
         {
@@ -83,13 +114,15 @@ namespace Prebuild
         {
             return;
         }
-        m_WorkspaceConfig = ParseWorkspace(rootSS.str(), rootSS);
+
+        ParseWorkspace(rootSS.str(), rootSS);
+
         std::string line;
         while (getline(rootSS, line))
         {
             ProjectType res = CheckProjectType(line);
 
-            ProjectConfig cfg = ParseProject(rootSS.str(), rootSS);
+            ProjectConfig cfg = ParseProject(rootSS.str(), rootSS, false, m_SearchDirectory);
             if (!cfg.Name.empty())
                 m_Projects.push_back(cfg);
 
@@ -104,9 +137,44 @@ namespace Prebuild
                 ProjectConfig cfg = ParseExternalProject(dir);
             }
         }
+
+        printf("Workspace - %s\n", m_WorkspaceConfig.Name.c_str());
+
+        for (auto& define : m_WorkspaceConfig.Configurations)
+        {
+            printf("Config - %s\n", define.c_str());
+        }
+
+        for (auto& cfg : m_Projects)
+        {
+            printf("%s\n", cfg.Name.c_str());
+        } */
+
+        lua_State* state = luaL_newstate();
+        if (!state)
+        {
+            std::cerr << "Failed to create lua state/\n";
+            return;
+        }
+
+        luaL_openlibs(state);
+
+        std::filesystem::path filePath = m_SearchDirectory / "prebuild.lua";
+        if (luaL_dofile(state, filePath.generic_string().c_str()) != LUA_OK)
+        {
+            std::cerr << "Failed to execute lua script: " << lua_tostring(state, -1) << std::endl;
+            lua_close(state);
+            return;
+        }
+        //lua_getglobal(state, "workspace");
+        //if (lua_isstring(state, -1))
+        //{
+        //    m_WorkspaceConfig.Name = lua_tostring(state, -1);
+        //    std::cout << m_WorkspaceConfig.Name << std::endl;
+        //}
     }
 
-    Platform::WorkspaceConfig Platform::ParseWorkspace(const std::string& in, std::stringstream& outSS)
+    void Platform::ParseWorkspace(const std::string& in, std::stringstream& outSS)
     {
         std::stringstream workspaceStr;
         std::stringstream out;
@@ -128,7 +196,7 @@ namespace Prebuild
             {
                 workspaceStr << line << std::endl;
             }
-            else
+            else if (!line.empty())
             {
                 out << line << std::endl;
             }
@@ -137,12 +205,12 @@ namespace Prebuild
         if (!projectFound)
         {
             std::cerr << "ERROR: No Projects Found!\n";
-            return WorkspaceConfig();
+            return;
         }
 
         outSS.str(out.str());
 
-        return GenerateWorkspaceConfig(workspaceStr);
+        GenerateWorkspaceConfig(workspaceStr);
     }
 
     Platform::ProjectConfig Platform::ParseProject(const std::string& in, std::stringstream& out, bool isExternal, const std::filesystem::path& parentPath)
@@ -161,7 +229,6 @@ namespace Prebuild
         while(getline(ss, line))
         {
             bool externalFound = false;
-            printf("%s\n", line.c_str());
             line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
             if (StrEqual(line, "project") && !firstLoop && !projectFound)
             {
@@ -180,11 +247,11 @@ namespace Prebuild
             }
 
 
-            if (!externalFound && !projectFound)
+            if (!externalFound && !projectFound && !line.empty())
             {
                 projectStr << line << std::endl;
             }
-            else if (projectFound && !externalFound)
+            else if (projectFound && !externalFound && !line.empty())
             {
                 outSS << line << std::endl;
             }
@@ -195,7 +262,7 @@ namespace Prebuild
         out.str(outSS.str());
 
 
-        return GenerateProjectConfig(projectStr.str(), isExternal, dir, m_SearchDirectory);
+        return {}; //GenerateProjectConfig(projectStr.str(), isExternal, dir, m_SearchDirectory);
     }
 
     Platform::ProjectConfig Platform::ParseExternalProject(const std::filesystem::path& path)
@@ -211,6 +278,128 @@ namespace Prebuild
 
         return ParseProject(inSS.str(), inSS, true, path);
     }
+    
+    void Platform::GenerateWorkspaceConfig(std::stringstream& ss)
+    {
+        WorkspaceConfig cfg;
+
+        std::string line;
+        while (getline(ss, line))
+        {
+            std::string keyword;
+            if (ContainsKeyword(line, keyword, KeywordType::WORKSPACE))
+            {
+                if (StrEqual(keyword, "workspace"))
+                    cfg.Name = ParseField(line, keyword);
+                else if (StrEqual(keyword, "architecture"))
+                    cfg.Architecture = StringToArchitectureType(ParseField(line, keyword));
+                else if (StrEqual(keyword, "configurations"))
+                   cfg.Configurations = ParseMultipleFields(ss.str(), ss, keyword);
+                else if (StrEqual(keyword, "defines"))
+                    cfg.Defines = ParseMultipleFields(ss.str(), ss, keyword);
+            }
+        }
+
+        if (cfg.Configurations.empty())
+        {
+            cfg.Configurations.push_back("Debug");
+            cfg.Configurations.push_back("Release");
+        }
+
+        cfg.FilePath = m_SearchDirectory;
+        m_WorkspaceConfig = cfg;
+    }
+    Platform::ProjectConfig Platform::GenerateProjectConfig(const std::string& strCache, bool isExternal, const std::string& path, const std::string& originalPath)
+    {
+
+    }
+    Platform::FilterConfig Platform::GenerateFilterConfig(const std::string& strCache, size_t* outPos, const std::string& keyword, const std::string& projectName, bool isExternal)
+    {
+
+    }
+
+    std::string Platform::ParseField(const std::string& line, const std::string& keyword)
+    {
+        std::string out = line;
+        out.erase(remove_if(out.begin(), out.end(), isspace), out.end());
+        out.erase(std::remove(out.begin(), out.end(), '"'), out.end());
+        out.erase(0, keyword.length());
+
+        return out;
+
+    }
+
+    std::vector<std::string> Platform::ParseMultipleFields(const std::string& in, std::stringstream& out, const std::string& keyword)
+    {
+        std::vector<std::string> fields;
+        std::stringstream outSS;
+        std::stringstream ss; ss << in;
+
+        if (IsSetForMultipleParameters(in, keyword))
+        {
+            std::string line;
+
+            Optional brackets;
+
+            bool keywordFound = false;
+
+            while (getline(ss, line))
+            {
+                int quotes = 0;
+
+                if (StrEqual(line, keyword))
+                {
+                    keywordFound = true;
+                }
+
+                if (!keywordFound)
+                {
+                    outSS << line << std::endl;
+                    continue;
+                }
+                std::string field;
+
+                std::vector<char> chars(line.data(), line.data() + line.length());
+
+                for (auto& c : chars)
+                {
+                    if (quotes == 1)
+                    {
+                        if (c != '\"')
+                            field += c;
+                    }
+
+
+                    if (c == '{')
+                        brackets++;
+                    else if (c == '}')
+                        brackets--;
+                    else if (c == '\"')
+                        quotes++;
+
+                    if (quotes == 2)
+                    {
+                        if (std::find(fields.begin(), fields.end(), field) == fields.end())
+                        fields.push_back(field);
+                    }
+                }
+
+                if (brackets.HasChanged && brackets.Value == 0)
+                    keywordFound = false;
+
+
+
+            }
+        }
+        else
+        {
+            std::string line;
+            getline(ss, line);
+            fields.push_back(ParseField(line, keyword));
+        }
+        return fields;
+
+    }
 
     Platform::ProjectType Platform::CheckProjectType(const std::string& line)
     {
@@ -223,6 +412,17 @@ namespace Prebuild
             return ProjectType::EXTERNAL;
         }
         return ProjectType::NONE;
+    }
+
+    Platform::ArchitectureType Platform::StringToArchitectureType(const std::string archStr)
+    {
+        if (StrEqual(archStr, "x86"))
+            return ArchitectureType::X86;
+        if (StrEqual(archStr, "x64"))
+            return ArchitectureType::X64;
+
+        return ArchitectureType::NONE;
+
     }
 
     bool Platform::CheckSyntax(const std::string& in)
@@ -314,23 +514,34 @@ namespace Prebuild
         return false;
     }
 
-    bool Platform::IsSetForMultipleParameters(const std::string& strCache, size_t& outPos)
+    bool Platform::IsSetForMultipleParameters(const std::string& in, const std::string& keyword)
     {
-        size_t pos = outPos;
-        for (int i = 0; i < 2; i++)
-        {
-            size_t eol = strCache.find_first_of("\r\n", pos);
-            std::string line = strCache.substr(pos, eol - pos);
+        bool keywordFound = false;
 
-            if (line.find("{") != NPOS)
+        std::stringstream ss; ss << in;
+        std::string line;
+        while (getline(ss, line))
+        {
+            if (StrEqual(line, keyword))
             {
-                return true;
+                keywordFound = true;
             }
-            pos = strCache.find_first_not_of("\r\n", eol);
-            if (pos == NPOS)
-                return false;
+
+            if (!keywordFound)
+                continue;
+
+            std::vector<char> chars(line.data(), line.data() + line.length());
+
+            for (auto& c : chars)
+            {
+                if (c == '{')
+                    return true;
+            }
+
         }
+
         return false;
+
     }
 
     bool Platform::ContainsKeyword(const std::string& line, std::string& outKeyword, const KeywordType type)

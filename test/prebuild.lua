@@ -1,9 +1,10 @@
-workspace "Test"
+workspace = "Test"
     architecture "x64"
 
     configurations
     {
-        "Debug"
+        "Debug",
+        "Release"
     }
 
 project "Daddy"

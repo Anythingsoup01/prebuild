@@ -2,12 +2,6 @@
 #include "Core.h"
 #include "Core/Utils.h"
 
-#include <cstring>
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-#include <sstream>
-#include <string>
 
 const size_t NPOS = std::string::npos;
 
@@ -102,18 +96,17 @@ namespace Prebuild
 
     private:
 
-        WorkspaceConfig ParseWorkspace(const std::string& in, std::stringstream& out);
+        void ParseWorkspace(const std::string& in, std::stringstream& out);
         ProjectConfig ParseProject(const std::string& in, std::stringstream& out, bool isExternal, const std::filesystem::path& parentPath = "");
         ProjectConfig ParseExternalProject(const std::filesystem::path& path);
 
 
-        WorkspaceConfig GenerateWorkspaceConfig(std::stringstream& ss);
+        void GenerateWorkspaceConfig(std::stringstream& ss);
         ProjectConfig GenerateProjectConfig(const std::string& strCache, bool isExternal, const std::string& path, const std::string& originalPath);
         FilterConfig GenerateFilterConfig(const std::string& strCache, size_t* outPos, const std::string& keyword, const std::string& projectName, bool isExternal);
         
         std::string ParseField(const std::string& line, const std::string& keyword);
-        std::vector<std::string> ParseMultipleFields(const std::string& strCache, size_t& outPos, const std::string& keyword);
-        std::vector<std::string> GetMultipleFields(const std::string& strCache, size_t& outPos, const std::string& keyword);
+        std::vector<std::string> ParseMultipleFields(const std::string& in, std::stringstream& out, const std::string& keyword);
 
         std::vector<std::string> GetAllFilesWithExtension(const std::string& line, const std::string& extension, const std::string folderName = "");
         std::vector<std::string> SearchDirectoryFor(const std::filesystem::path filePath, const std::string extension);
@@ -130,7 +123,7 @@ namespace Prebuild
         bool CheckSyntax(const std::string& in);
         std::string GetKeyword(const std::string& line);
         bool IsMultiParameter(const std::string& keyword);
-        bool IsSetForMultipleParameters(const std::string& strCache, size_t& outPos);
+        bool IsSetForMultipleParameters(const std::string& in, const std::string& keyword);
         bool ContainsKeyword(const std::string& line, std::string& outKeyword, const KeywordType type);
     private:
         std::filesystem::path m_SearchDirectory;

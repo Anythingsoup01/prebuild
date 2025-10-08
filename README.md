@@ -1,7 +1,7 @@
 # prebuild
 My own custom build generator, inspired by premake5
 
-To compile -
+To compile :
   Clone / Download the repository
   Create 'build' folder in the root folder
   Run cmake .. followed by cmake --build .

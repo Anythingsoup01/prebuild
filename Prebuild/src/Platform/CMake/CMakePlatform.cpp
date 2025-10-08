@@ -141,68 +141,70 @@ namespace Prebuild
     {
         std::stringstream ss;
 
-        ss << "set(SRCS\n";
-
-        std::vector<std::filesystem::path> tmp;
-
-        for (auto file : cfg.Files)
+        if (!cfg.Files.empty())
         {
-            if (!StrEqual(file.filename().string(), "*"))
+            ss << "set(SRCS\n";
+
+            std::vector<std::filesystem::path> tmp;
+
+            for (auto file : cfg.Files)
             {
-                tmp.push_back(file);
-                continue;
-            }
-
-            bool hasKeyword = false;
-
-            std::filesystem::path tmpFile = ContainsWorkspaceKeyword(file);
-
-            if (!StrEqual(tmpFile.generic_string(), file.generic_string()))
-            {
-                hasKeyword = true;
-                file = tmpFile;
-            }
-
-
-            std::filesystem::path actualPath;
-            if (!cfg.Directory.has_parent_path() || hasKeyword)
-                actualPath = m_WorkspaceConfig.WorkingDirectory;
-            else
-                actualPath = cfg.Directory;
-
-            std::filesystem::path relPath = actualPath;
-
-            if (file.has_parent_path())
-                actualPath /= file.parent_path();
-            
-            try
-            {
-                for (const auto& entry : std::filesystem::recursive_directory_iterator(actualPath))
+                if (!StrEqual(file.filename().string(), "*"))
                 {
-                    if (entry.path().extension() == file.extension())
-                    {
-                        std::filesystem::path relativePath = std::filesystem::relative(entry.path(), relPath);
-                        std::filesystem::path pushBack;
-                        if (hasKeyword)
-                        {
-                            pushBack /= "${CMAKE_SOURCE_DIR}" / relativePath;
-                        }
-                        else
-                        {
-                            pushBack = relativePath;
-                        }
-                        tmp.push_back(pushBack);
-                    }
+                    tmp.push_back(file);
+                    continue;
                 }
-            } catch (std::filesystem::filesystem_error) { std::cerr << "Failed to find directory: '" << actualPath.generic_string() << "' : for project: '" << cfg.Name << "'!\n"; }
-        }
 
-        for (auto& src : tmp)
-        {
-            ss << "    " << src << std::endl;
-        }
-        ss << ")\n";
+                bool hasKeyword = false;
 
+                std::filesystem::path tmpFile = ContainsWorkspaceKeyword(file);
+
+                if (!StrEqual(tmpFile.generic_string(), file.generic_string()))
+                {
+                    hasKeyword = true;
+                    file = tmpFile;
+                }
+
+
+                std::filesystem::path actualPath;
+                if (!cfg.Directory.has_parent_path() || hasKeyword)
+                    actualPath = m_WorkspaceConfig.WorkingDirectory;
+                else
+                    actualPath = cfg.Directory;
+
+                std::filesystem::path relPath = actualPath;
+
+                if (file.has_parent_path())
+                    actualPath /= file.parent_path();
+
+                try
+                {
+                    for (const auto& entry : std::filesystem::recursive_directory_iterator(actualPath))
+                    {
+                        if (entry.path().extension() == file.extension())
+                        {
+                            std::filesystem::path relativePath = std::filesystem::relative(entry.path(), relPath);
+                            std::filesystem::path pushBack;
+                            if (hasKeyword)
+                            {
+                                pushBack /= "${CMAKE_SOURCE_DIR}" / relativePath;
+                            }
+                            else
+                            {
+                                pushBack = relativePath;
+                            }
+                            tmp.push_back(pushBack);
+                        }
+                    }
+                } catch (std::filesystem::filesystem_error) { std::cerr << "Failed to find directory: '" << actualPath.generic_string() << "' : for project: '" << cfg.Name << "'!\n"; }
+            }
+
+            for (auto& src : tmp)
+            {
+                ss << "    " << src << std::endl;
+            }
+            ss << ")\n";
+        }
 
         switch (cfg.Kind)
         {
@@ -279,7 +281,7 @@ namespace Prebuild
             ss << ")\n\n";
         }
 
-        if (!m_WorkspaceConfig.Defines.empty())
+        if (!m_WorkspaceConfig.Defines.empty() && !cfg.Name.empty())
         {
             ss << "target_compile_definitions(" << cfg.Name << " PUBLIC GDEFINES)\n";
         }

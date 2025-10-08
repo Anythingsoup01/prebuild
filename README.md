@@ -8,8 +8,8 @@ To compile -
   The prebuild executable will be located in the build folder
 
 To use -
-  Copy prebuild binary to the root of your project folder
-  run the command prebuild [system] [version]
+Copy prebuild binary to the root of your project folder
+run the command prebuild [system] [version]
 
 Supported systems -
   cmake (you can put any version as far as I'm aware if any errors occur open an Issue and it will be resolved as soon as possible)

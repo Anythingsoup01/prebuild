@@ -3,13 +3,16 @@
 #include "Core/Utils.h"
 
 
+#include <lua.hpp>
+
+
 const size_t NPOS = std::string::npos;
 
 namespace Prebuild
 {
     class Platform
     {
-    private:
+    public:
         enum class ProjectType
         {
             NONE = 0,
@@ -50,25 +53,27 @@ namespace Prebuild
     public:
         struct WorkspaceConfig
         {
+            std::filesystem::path WorkingDirectory;
             std::string Name;
             ArchitectureType Architecture;
-            std::filesystem::path FilePath;
 
             std::vector<std::string> Configurations;
             std::vector<std::string> Defines;
+
+            std::vector<std::string> Externals;
         };
 
         struct FilterConfig
         {
-            std::string FilterParameter;
-
+            std::string Name;
+            std::vector<std::filesystem::path> Files;
             std::vector<std::string> Defines;
             std::vector<std::string> Links;
         };
 
         struct ProjectConfig
         {
-            std::string Directory;
+            std::filesystem::path Directory;
             std::string Name;
             std::string Dialect;
 
@@ -79,56 +84,49 @@ namespace Prebuild
 
             bool External;
 
-            std::vector<std::string> Files;
-            std::vector<std::string> IncludedDirectories;
+            std::vector<std::filesystem::path> Files;
+            std::vector<std::filesystem::path> IncludedDirectories;
             std::vector<std::string> Links;
             std::vector<std::string> Defines;
 
             std::vector<FilterConfig> Filters;
+
+            std::vector<std::string> Externals;
         };
 
         WorkspaceConfig m_WorkspaceConfig;
         std::vector<ProjectConfig> m_Projects;
 
     public:
-        Platform(const std::filesystem::path& searchDirectory = std::filesystem::current_path());
+        Platform() = default;
+        Platform(const Utils::System& system, const std::filesystem::path& searchDirectory = std::filesystem::current_path());
         ~Platform() {}
-
+        static bool StrEqual(const std::string& in, const std::string& check);
     private:
 
-        void ParseWorkspace(const std::string& in, std::stringstream& out);
-        ProjectConfig ParseProject(const std::string& in, std::stringstream& out, bool isExternal, const std::filesystem::path& parentPath = "");
-        ProjectConfig ParseExternalProject(const std::filesystem::path& path);
+        std::string FormatFileToLua(const std::filesystem::path& filePath);
+
+        WorkspaceConfig GetWorkspaceVariables(lua_State* L);
+        ProjectConfig GetInlineProject(lua_State* L, const std::string& varName);
+        ProjectConfig GetExternalProject(const std::filesystem::path& path);
+        ProjectConfig GetProjectVariables(lua_State* L, const std::string& varName, const std::filesystem::path& path);
+
+        FilterConfig ProcessFilter(lua_State* L);
+
+        ArchitectureType StringToArchitectureType(const std::string& archStr);
+        LanguageType StringToLanguageType(const std::string& langStr);
+        KindType StringToKindType(const std::string& kindStr);
 
 
-        void GenerateWorkspaceConfig(std::stringstream& ss);
-        ProjectConfig GenerateProjectConfig(const std::string& strCache, bool isExternal, const std::string& path, const std::string& originalPath);
-        FilterConfig GenerateFilterConfig(const std::string& strCache, size_t* outPos, const std::string& keyword, const std::string& projectName, bool isExternal);
-        
-        std::string ParseField(const std::string& line, const std::string& keyword);
-        std::vector<std::string> ParseMultipleFields(const std::string& in, std::stringstream& out, const std::string& keyword);
-
-        std::vector<std::string> GetAllFilesWithExtension(const std::string& line, const std::string& extension, const std::string folderName = "");
-        std::vector<std::string> SearchDirectoryFor(const std::filesystem::path filePath, const std::string extension);
-
-        ArchitectureType StringToArchitectureType(const std::string archStr);
-        LanguageType StringToLanguageType(std::string langStr);
-        KindType StringToKindType(std::string kindStr);
-
-        ProjectType CheckProjectType(const std::string& line);
-
-        void Create();
-
-
-        bool CheckSyntax(const std::string& in);
-        std::string GetKeyword(const std::string& line);
-        bool IsMultiParameter(const std::string& keyword);
-        bool IsSetForMultipleParameters(const std::string& in, const std::string& keyword);
-        bool ContainsKeyword(const std::string& line, std::string& outKeyword, const KeywordType type);
+        Scope<Platform> Create(const WorkspaceConfig& workspaceConfig, const std::vector<ProjectConfig>& projectConfigs);
     private:
+        Utils::System m_System;
         std::filesystem::path m_SearchDirectory;
 
         std::vector<std::filesystem::path> m_ExternalPaths;
         std::vector<std::filesystem::path> m_TMPPaths;
+
+        int m_CurrentProjectCount = 0;
+        int m_CurrentExternalCount = 0;
     };
 }

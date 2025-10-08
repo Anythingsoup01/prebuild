@@ -3,8 +3,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 project(Prebuild LANGUAGES CXX)
 set(SRCS
     Prebuild/src/prebuild.cpp
+    Prebuild/src/Platform/CMake/CMakePlatform.cpp
     Prebuild/src/Core/Platform.cpp
     Prebuild/src/Core/Utils.cpp
+    Prebuild/src/Platform/CMake/CMakePlatform.h
     Prebuild/src/pbpch.h
     Prebuild/src/Core/Platform.h
     Prebuild/src/Core/Utils.h

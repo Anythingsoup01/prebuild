@@ -22,7 +22,7 @@ int main(int argc, char** argv)
             {
                 currentPath /= argv[2];
             }
-            Prebuild::Platform platform(currentPath);
+            Prebuild::Platform platform(system, currentPath);
             break;
         }
         default:

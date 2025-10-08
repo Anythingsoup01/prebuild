@@ -135,7 +135,6 @@ namespace Prebuild
         m_WorkspaceConfig = GetWorkspaceVariables(state);
         m_WorkspaceConfig.WorkingDirectory = m_SearchDirectory;
 
-        stackdump(state);
 
         for (int i = 0; i < m_CurrentProjectCount; i++)
         {
@@ -145,7 +144,6 @@ namespace Prebuild
             m_Projects.push_back(cfg);
         }
 
-        stackdump(state);
 
         for (int i = 0; i < m_CurrentExternalCount; i++)
         {
@@ -165,7 +163,6 @@ namespace Prebuild
         m_CurrentExternalCount = 0;
         m_CurrentProjectCount = 0;
 
-        stackdump(state);
 
         while (!m_TMPPaths.empty())
         {
@@ -225,8 +222,6 @@ namespace Prebuild
     }
 
 
-
-
     Platform::WorkspaceConfig Platform::GetWorkspaceVariables(lua_State* L)
     {
         WorkspaceConfig cfg;
@@ -266,6 +261,11 @@ namespace Prebuild
 
         lua_pop(L, 1);
 
+
+        if (cfg.Configurations.empty())
+        {
+            cfg.Configurations = {"Debug", "Release"};
+        }
         return cfg;
     }
 
@@ -300,7 +300,9 @@ namespace Prebuild
             return {};
         }
 
-        ProjectConfig cfg = GetProjectVariables(state, "Project0", m_SearchDirectory / path);
+        ProjectConfig cfg;
+        if (m_CurrentProjectCount != 0)
+            cfg = GetProjectVariables(state, "Project0", m_SearchDirectory / path);
         cfg.External = true;
 
         for (int i = 0; i < m_CurrentExternalCount; i++)
@@ -316,7 +318,6 @@ namespace Prebuild
             std::filesystem::path relativePath = m_SearchDirectory / path / variable;
             m_TMPPaths.push_back(relativePath);
 
-            std::cout << relativePath.generic_string() << std::endl;
             lua_pop(state, 1);
         }
 

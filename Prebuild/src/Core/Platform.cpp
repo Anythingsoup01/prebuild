@@ -184,7 +184,7 @@ namespace Prebuild
         std::ifstream in(filePath);
         if (!in.is_open())
         {
-            std::cerr << "Failed to open: " << filePath.generic_string() << std::endl;
+            std::cout << "Failed to open: " << filePath.generic_string() << ": Assuming it's a Non-Prebuild File!" << std::endl;
             return std::string();
         }
         std::stringstream ss;
@@ -315,9 +315,15 @@ namespace Prebuild
             std::string variable = GetStringVariable(state, extName);
             cfg.Externals.push_back(variable);
 
-            std::filesystem::path relativePath = m_SearchDirectory / path / variable;
-            m_TMPPaths.push_back(relativePath);
-
+            if (std::filesystem::exists(m_SearchDirectory / path / variable / "prebuild.lua"))
+            {
+                std::filesystem::path relativePath = m_SearchDirectory / path / variable;
+                m_TMPPaths.push_back(relativePath);
+            }
+            else
+            {
+                std::cout << "Warning: Prebuild could not be located for - " << variable << " - assuming there is a build file there!\n";
+            }
             lua_pop(state, 1);
         }
 

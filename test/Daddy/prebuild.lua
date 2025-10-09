@@ -8,4 +8,4 @@ Project =
     },
 }
 
-External = "Child"
+External = "Child1"

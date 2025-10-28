@@ -1,25 +1,26 @@
-workspace "Prebuild"
+Workspace = {
+    name = "Prebuild",
+}
 
-project "prebuild"
-    language "C++"
-    dialect "20"
-    kind "ConsoleApp"
+Project = {
+    name = "prebuild",
+    language = "C++",
+    dialect = "20",
+    kind = "ConsoleApp",
 
-    pch "Prebuild/src/pbpch.h"
+    pch = "Prebuild/src/pbpch.h",
 
-    files
-    {
+    files = {
         "Prebuild/src/*.cpp",
         "Prebuild/src/*.h",
-    }
+    },
 
-    includedirs
-    {
+    includedirs = {
         "Prebuild/src"
-    }
+    },
 
-    links
-    {
+    links = {
         "lua",
-    }
+    },
+}
 

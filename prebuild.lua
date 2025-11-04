@@ -1,6 +1,7 @@
 Workspace = {
     name = "Prebuild",
 }
+
 Project = {
     name = "prebuild",
     language = "C++",
@@ -21,5 +22,4 @@ Project = {
     links = {
         "lua5.4",
     },
-
 }

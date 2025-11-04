@@ -74,6 +74,13 @@ namespace Prebuild
                ss << "    " << def << std::endl;
             ss << ")\n\n";
         }
+        if (!m_WorkspaceConfig.CompileFlags.empty())
+        {
+            ss << "add_compile_options(\n";
+            for (auto& flag : m_WorkspaceConfig.CompileFlags)
+                ss << "    " << flag << "\n";
+            ss << ")\n\n";
+        }
 
 
         for (const auto& cfg : m_Projects)
@@ -272,6 +279,13 @@ namespace Prebuild
 
             ss << ")\n\n";
         }
+        if (!cfg.CompileFlags.empty())
+        {
+            ss << "target_compile_options(" << cfg.Name << " PRIVATE\n";
+            for (auto& flag : cfg.CompileFlags)
+                ss << "    " << flag << "\n";
+            ss << ")\n\n";
+        }
 
         if (!cfg.Defines.empty())
         {
@@ -341,6 +355,13 @@ namespace Prebuild
                 ss << "    " << link << std::endl;
             ss << ")\n";
         }
+        if (!cfg.CompileFlags.empty())
+        {
+            ss << "target_compile_options(" << target << " PRIVATE\n";
+            for (auto& flag : cfg.CompileFlags)
+                ss << "    " << flag << "\n";
+            ss << ")\n\n";
+        }
 
         ss << "endif(" << platform << ")\n";
 
@@ -382,6 +403,13 @@ namespace Prebuild
             for (auto& link : cfg.Links)
                 ss << "    " << link << std::endl;
             ss << ")\n";
+        }
+        if (!cfg.CompileFlags.empty())
+        {
+            ss << "target_compile_options(" << target << " PRIVATE\n";
+            for (auto& flag : cfg.CompileFlags)
+                ss << "    " << flag << "\n";
+            ss << ")\n\n";
         }
         ss << "endif(CMAKE_BUILD_TYPE STREQUAL " << config << ")\n";
 

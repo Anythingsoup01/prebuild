@@ -256,6 +256,10 @@ namespace Prebuild
             {
                 cfg.Defines = GetTableVariables(L, "defines");
             }
+            else if (StrEqual(key, "flags"))
+            {
+                cfg.CompileFlags = GetTableVariables(L, "flags");
+            }
             lua_pop(L, 1);
         }
 
@@ -400,14 +404,17 @@ namespace Prebuild
             {
                 cfg.Defines = GetTableVariables(L, "links");
             }
+            else if (StrEqual(key, "flags"))
+            {
+                cfg.CompileFlags = GetTableVariables(L, "flags");
+            }
+
             else if (StrEqual(key, "filters"))
             {
                 if (lua_istable(L, -1))
                 {
                     lua_pushnil(L);
                     int configIndex = lua_gettop(L) - 1;
-
-                    FilterConfig fcfg;
 
                     while(lua_next(L, configIndex) != 0)
                     {
@@ -427,7 +434,7 @@ namespace Prebuild
 
     Platform::FilterConfig Platform::ProcessFilter(lua_State* L)
     {
-        FilterConfig fcfg;
+        FilterConfig cfg;
         if (lua_istable(L, -1))
         {
             lua_pushnil(L);
@@ -440,27 +447,31 @@ namespace Prebuild
 
                 if (StrEqual(key, "name"))
                 {
-                    fcfg.Name = GetStringVariable(L, "name");
+                    cfg.Name = GetStringVariable(L, "name");
                 }
                 else if (StrEqual(key, "files"))
                 {
                     std::vector<std::string> tmp = GetTableVariables(L, "files");
                     for (auto& file : tmp)
-                        fcfg.Files.push_back(file);
+                        cfg.Files.push_back(file);
                 }
                 else if (StrEqual(key, "defines"))
                 {
-                    fcfg.Defines = GetTableVariables(L, "defines");
+                    cfg.Defines = GetTableVariables(L, "defines");
+                }
+                else if (StrEqual(key, "flags"))
+                {
+                    cfg.CompileFlags = GetTableVariables(L, "flags");
                 }
                 else if (StrEqual(key, "links"))
                 {
-                    fcfg.Links = GetTableVariables(L, "links");
+                    cfg.Links = GetTableVariables(L, "links");
                 }
 
                 lua_pop(L, 1);
             }
         }
-        return fcfg;
+        return cfg;
     }
 
     Platform::ArchitectureType Platform::StringToArchitectureType(const std::string& archStr)

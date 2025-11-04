@@ -3,7 +3,7 @@
 #include "Core/Utils.h"
 
 
-#include <lua.hpp>
+#include <lua5.4/lua.hpp>
 
 
 const size_t NPOS = std::string::npos;
@@ -59,6 +59,7 @@ namespace Prebuild
 
             std::vector<std::string> Configurations;
             std::vector<std::string> Defines;
+            std::vector<std::string> CompileFlags;
 
             std::vector<std::string> Externals;
         };
@@ -69,6 +70,7 @@ namespace Prebuild
             std::vector<std::filesystem::path> Files;
             std::vector<std::string> Defines;
             std::vector<std::string> Links;
+            std::vector<std::string> CompileFlags;
         };
 
         struct ProjectConfig
@@ -86,8 +88,9 @@ namespace Prebuild
 
             std::vector<std::filesystem::path> Files;
             std::vector<std::filesystem::path> IncludedDirectories;
-            std::vector<std::string> Links;
             std::vector<std::string> Defines;
+            std::vector<std::string> Links;
+            std::vector<std::string> CompileFlags;
 
             std::vector<FilterConfig> Filters;
 

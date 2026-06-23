@@ -2,134 +2,123 @@
 #include "Core.h"
 #include "Core/Utils.h"
 
-
 #include <lua5.4/lua.hpp>
-
 
 const size_t NPOS = std::string::npos;
 
-namespace Prebuild
-{
-    class Platform
-    {
-    public:
-        enum class ProjectType
-        {
-            NONE = 0,
-            INLINE,
-            EXTERNAL,
-        };
+namespace Prebuild {
+class Platform {
+public:
+  enum class ProjectType {
+    NONE = 0,
+    INLINE,
+    EXTERNAL,
+  };
 
-        enum class KindType
-        {
-            NONE = 0,
-            STATICLIB,
-            SHAREDLIB,
-            CONSOLEAPP,
-        };
+  enum class KindType {
+    NONE = 0,
+    STATICLIB,
+    SHAREDLIB,
+    CONSOLEAPP,
+  };
 
-        enum class LanguageType
-        {
-            NONE = 0,
-            C,
-            CXX,
-        };
+  enum class LanguageType {
+    NONE = 0,
+    C,
+    CXX,
+  };
 
-        enum class ArchitectureType
-        {
-            NONE = 0,
-            X86,
-            X64,
-        };
+  enum class ArchitectureType {
+    NONE = 0,
+    X86,
+    X64,
+  };
 
-        enum class KeywordType
-        {
-            NONE = 0,
-            WORKSPACE,
-            PROJECT,
-            FILTER,
-            FILEPATH,
-        };
-    public:
-        struct WorkspaceConfig
-        {
-            std::filesystem::path WorkingDirectory;
-            std::string Name;
-            ArchitectureType Architecture;
+  enum class KeywordType {
+    NONE = 0,
+    WORKSPACE,
+    PROJECT,
+    FILTER,
+    FILEPATH,
+  };
 
-            std::vector<std::string> Configurations;
-            std::vector<std::string> Defines;
-            std::vector<std::string> CompileFlags;
+public:
+  struct WorkspaceConfig {
+    std::filesystem::path WorkingDirectory;
+    std::string Name;
+    ArchitectureType Architecture;
 
-            std::vector<std::string> Externals;
-        };
+    std::vector<std::string> Configurations;
+    std::vector<std::string> Defines;
+    std::vector<std::string> CompileFlags;
 
-        struct FilterConfig
-        {
-            std::string Name;
-            std::vector<std::filesystem::path> Files;
-            std::vector<std::string> Defines;
-            std::vector<std::string> Links;
-            std::vector<std::string> CompileFlags;
-        };
+    std::vector<std::string> Externals;
+  };
 
-        struct ProjectConfig
-        {
-            std::filesystem::path Directory;
-            std::string Name;
-            std::string Dialect;
+  struct FilterConfig {
+    std::string Name;
+    std::vector<std::filesystem::path> Files;
+    std::vector<std::string> Defines;
+    std::vector<std::string> Links;
+    std::vector<std::string> CompileFlags;
+  };
 
-            LanguageType Language;
-            KindType Kind;
+  struct ProjectConfig {
+    std::string Name;
+    std::string Dialect;
 
-            std::string PrecompiledHeader;
+    LanguageType Language;
+    KindType Kind;
 
-            bool External;
+    std::string PrecompiledHeader;
 
-            std::vector<std::filesystem::path> Files;
-            std::vector<std::filesystem::path> IncludedDirectories;
-            std::vector<std::string> Defines;
-            std::vector<std::string> Links;
-            std::vector<std::string> CompileFlags;
+    bool External;
 
-            std::vector<FilterConfig> Filters;
+    std::vector<std::filesystem::path> Files;
+    std::vector<std::filesystem::path> IncludedDirectories;
+    std::vector<std::string> Defines;
+    std::vector<std::string> Links;
+    std::vector<std::string> CompileFlags;
 
-            std::vector<std::string> Externals;
-        };
+    std::vector<FilterConfig> Filters;
+  };
 
-        WorkspaceConfig m_WorkspaceConfig;
-        std::vector<ProjectConfig> m_Projects;
+  struct ProjectFileConfig {
+    std::filesystem::path Directory;
+    std::vector<ProjectConfig> Projects;
+    std::vector<std::string> Externals;
+  };
 
-    public:
-        Platform() = default;
-        Platform(const Utils::System& system, const std::filesystem::path& searchDirectory = std::filesystem::current_path());
-        ~Platform() {}
-        static bool StrEqual(const std::string& in, const std::string& check);
-    private:
+  WorkspaceConfig m_WorkspaceConfig;
 
-        std::string FormatFileToLua(const std::filesystem::path& filePath);
+public:
+  Platform() = default;
+  Platform(const Utils::System &system,
+           const std::filesystem::path &searchDirectory =
+               std::filesystem::current_path());
+  ~Platform() {}
+  static bool StrEqual(const std::string &in, const std::string &check);
 
-        WorkspaceConfig GetWorkspaceVariables(lua_State* L);
-        ProjectConfig GetInlineProject(lua_State* L, const std::string& varName);
-        ProjectConfig GetExternalProject(const std::filesystem::path& path);
-        ProjectConfig GetProjectVariables(lua_State* L, const std::string& varName, const std::filesystem::path& path);
+private:
+  std::vector<std::string> ParseLuaBlocks(const std::filesystem::path &filePath);
 
-        FilterConfig ProcessFilter(lua_State* L);
+  WorkspaceConfig GetWorkspaceVariables(lua_State *L);
+  ProjectConfig GetProjectVariables(lua_State *L);
 
-        ArchitectureType StringToArchitectureType(const std::string& archStr);
-        LanguageType StringToLanguageType(const std::string& langStr);
-        KindType StringToKindType(const std::string& kindStr);
+  FilterConfig ProcessFilter(lua_State *L);
 
+  ArchitectureType StringToArchitectureType(const std::string &archStr);
+  LanguageType StringToLanguageType(const std::string &langStr);
+  KindType StringToKindType(const std::string &kindStr);
 
-        Scope<Platform> Create(const WorkspaceConfig& workspaceConfig, const std::vector<ProjectConfig>& projectConfigs);
-    private:
-        Utils::System m_System;
-        std::filesystem::path m_SearchDirectory;
+  Scope<Platform> Create(const WorkspaceConfig &workspaceConfig,
+                         const std::vector<ProjectFileConfig> &fileConfigs);
 
-        std::vector<std::filesystem::path> m_ExternalPaths;
-        std::vector<std::filesystem::path> m_TMPPaths;
+private:
+  Utils::System m_System;
+  std::filesystem::path m_SearchDirectory;
 
-        int m_CurrentProjectCount = 0;
-        int m_CurrentExternalCount = 0;
-    };
-}
+  std::vector<std::filesystem::path> m_ExternalPaths;
+  std::vector<std::filesystem::path> m_TMPPaths;
+};
+} // namespace Prebuild

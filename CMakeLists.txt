@@ -1,15 +1,15 @@
-cmake_minimum_required(VERSION 3.28.3)
+cmake_minimum_required(VERSION 4.3.3)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 project(Prebuild LANGUAGES CXX)
 set(SRCS
-    "Prebuild/src/prebuild.cpp"
-    "Prebuild/src/Platform/CMake/CMakePlatform.cpp"
     "Prebuild/src/Core/Utils.cpp"
     "Prebuild/src/Core/Platform.cpp"
-    "Prebuild/src/Platform/CMake/CMakePlatform.h"
-    "Prebuild/src/Core/Core.h"
+    "Prebuild/src/Platform/CMake/CMakePlatform.cpp"
+    "Prebuild/src/prebuild.cpp"
     "Prebuild/src/Core/Utils.h"
     "Prebuild/src/Core/Platform.h"
+    "Prebuild/src/Core/Core.h"
+    "Prebuild/src/Platform/CMake/CMakePlatform.h"
     "Prebuild/src/pbpch.h"
 )
 add_executable(prebuild ${SRCS})

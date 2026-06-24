@@ -10,32 +10,27 @@ namespace Prebuild {
 class Platform {
 public:
   enum class ProjectType {
-    NONE = 0,
     INLINE,
     EXTERNAL,
   };
 
   enum class KindType {
-    NONE = 0,
     STATICLIB,
     SHAREDLIB,
     CONSOLEAPP,
   };
 
   enum class LanguageType {
-    NONE = 0,
     C,
     CXX,
   };
 
   enum class ArchitectureType {
-    NONE = 0,
     X86,
     X64,
   };
 
   enum class KeywordType {
-    NONE = 0,
     WORKSPACE,
     PROJECT,
     FILTER,
@@ -56,7 +51,8 @@ public:
   };
 
   struct FilterConfig {
-    std::string Name;
+    std::string Type;
+    std::string Param;
     std::vector<std::filesystem::path> Files;
     std::vector<std::string> Defines;
     std::vector<std::string> Links;

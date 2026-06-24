@@ -324,8 +324,10 @@ Platform::FilterConfig Platform::ProcessFilter(lua_State *L) {
     while (lua_next(L, configIndex) != 0) {
       std::string key = lua_tostring(L, -2);
 
-      if (StrEqual(key, "name")) {
-        cfg.Name = GetStringVariable(L, "name");
+      if (StrEqual(key, "type")) {
+        cfg.Type = GetStringVariable(L, "type");
+      } else if (StrEqual(key, "param")) {
+        cfg.Param = GetStringVariable(L, "param");
       } else if (StrEqual(key, "files")) {
         std::vector<std::string> tmp = GetTableVariables(L, "files");
         for (auto &file : tmp)
@@ -351,7 +353,7 @@ Platform::StringToArchitectureType(const std::string &archStr) {
   if (StrEqual(archStr, "x64"))
     return ArchitectureType::X64;
 
-  return ArchitectureType::NONE;
+  return ArchitectureType::X64;
 }
 
 Platform::LanguageType
@@ -360,7 +362,7 @@ Platform::StringToLanguageType(const std::string &langStr) {
     return LanguageType::C;
   if (langStr == "C++")
     return LanguageType::CXX;
-  return LanguageType::NONE;
+  return LanguageType::CXX;
 }
 
 Platform::KindType Platform::StringToKindType(const std::string &kindStr) {
@@ -370,17 +372,17 @@ Platform::KindType Platform::StringToKindType(const std::string &kindStr) {
     return KindType::SHAREDLIB;
   if (kindStr == "ConsoleApp")
     return KindType::CONSOLEAPP;
-  return KindType::NONE;
+  return KindType::CONSOLEAPP;
 }
 
-Scope<Platform>
-Platform::Create(const WorkspaceConfig &workspaceConfig,
+Scope<Platform> Platform::Create(const WorkspaceConfig &workspaceConfig,
                  const std::vector<ProjectFileConfig> &fileConfigs) {
   switch (m_System) {
   case Utils::System::CMAKE:
-    return nullptr;// CreateScope<CMakePlatform>(workspaceConfig, fileConfigs);
+    return CreateScope<CMakePlatform>(workspaceConfig, fileConfigs);
   default:
     return nullptr;
   }
 }
+
 } // namespace Prebuild

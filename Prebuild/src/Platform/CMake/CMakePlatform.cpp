@@ -62,7 +62,7 @@ void CMakePlatform::Build() {
       // These are a global so the entire project can compile dependencies of different languages and link them
       if (proj.Language == LanguageType::C) containsC = true;
       if (proj.Language == LanguageType::CXX) containsCXX = true;
-      std::string block = BuildProject(proj);
+      std::string block = BuildProject(proj, cfg.Directory.parent_path());
     }
   }
 
@@ -126,190 +126,248 @@ void CMakePlatform::Build() {
   out.close();
 }
 
-std::filesystem::path ReplaceWorkspaceKeyword(const std::filesystem::path &file) {
-  if (CMakePlatform::StrEqual(file.begin()->string(), "${WORKSPACEDIR}")) {
-    std::string tmp = file.generic_string();
-    tmp.erase(0, strlen("${WORKSPACEDIR}"));
-    return std::filesystem::path("${CMAKE_SOURCE_DIR}") / tmp;
-  }
-  return file;
-}
-
 std::string CheckKeyword(const std::filesystem::path &rootPath) {
   if (Platform::StrEqual(rootPath.string(), "${WORKSPACEDIR}"))
     return "${CMAKE_SOURCE_DIR}";
   return std::string();
 }
 
-std::string CMakePlatform::BuildProject(const ProjectConfig &proj) {
+std::string RecursiveSearchForExtension(const std::filesystem::path &searchPath, const std::string &keyword, const std::string &extension) {
+  std::stringstream out;
+  try {
+    for (const auto &entry : std::filesystem::recursive_directory_iterator(searchPath)) {
+      if (entry.path().extension() == extension) {
+        std::filesystem::path relativePath = std::filesystem::relative(entry.path(), relPath);
+        // TODO: Handle multiple keywords when the time comes
+        if (!keyword.empty()) {
+          out << keyword << "/";
+        }
+        out << relativePath.generic_string() << "\n";
+      }
+    }
+  } catch (std::filesystem::filesystem_error e) {
+    throw std::filesystem::filesystem_error(e.what(), e.path1(), e.path2(), e.code());
+  }
+  return out.str();
+}
+
+std::string SearchForExtension(const std::filesystem::path &searchPath, const std::string &keyword, const std::string &extension) {
+  std::stringstream out;
+  try {
+    for (const auto &entry : std::filesystem::directory_iterator(searchPath)) {
+      if (entry.path().extension() == extension) {
+        std::filesystem::path relativePath = std::filesystem::relative(entry.path(), relPath);
+        // TODO: Handle multiple keywords when the time comes
+        if (!keyword.empty()) {
+          out << keyword << "/";
+        }
+        out << relativePath.generic_string() << "\n";
+      }
+    }
+  } catch (std::filesystem::filesystem_error e) {
+    throw std::filesystem::filesystem_error(e.what(), e.path1(), e.path2(), e.code());
+  }
+  return out.str();
+
+}
+
+//
+//  Used to parse the files of a project config
+//
+std::string CMakePlatform::BuildProjectFiles(const std::vector<std::filesystem::path>& files, const std::filesystem::path &relPath) {
+  std::stringstream out;
+
+  out << "set(SRCS\n";
+  for (auto &file : files) {
+    std::string keyword = CheckKeyword(*file.begin());
+    std::filesystem::path parsedPath = file;
+    if (!keyword.empty()) {
+      bool first = true;
+      for (auto &part : file) {
+        if (first) {
+          first = false;
+          parsedPath = keyword;
+          continue;
+        }
+        parsedPath /= part;
+      }
+    }
+
+    bool recursiveSearch = false;
+    if (Platform::StrEqual(parsedPath.filename().string(), "**")) {
+      recursiveSearch = true;
+    } else if (!StrEqual(parsedPath.filename().string(), "*")) {
+      out << parsedPath << "\n";
+      continue;
+    }
+
+    std::filesystem::path searchPath;
+    // TODO: Handle mutiple preprocessor keywords
+    if (Platform::StrEqual(keyword, "${WORKSPACEDIR}")) {
+      searchPath = m_WorkspaceConfig.WorkingDirectory / file.parent_path();
+    } else {
+      searchPath = relPath / file.parent_path();
+    }
+
+    try {
+      if (recursiveSearch) out << RecursiveSearchForExtension(searchPath, keyword, file.extension());
+      else SearchForExtension(searchPath, keyword, file.extension());
+    } catch (std::filesystem::filesystem_error e) {
+      std::cerr << "Failed to find directory:\n"
+                << "What: " << e.what() << "\n"
+                << "Path 1: " << e.path1() << "\n"
+                << "Path 2: " << e.path2() << "\n"
+                << "Error Code: " << e.code();
+
+    }
+  }
+
+  out << ")\n";
+
+  return out.str();
+}
+
+std::string CMakePlatform::BuildProjectKind(const std::string &projName, const KindType &projKind) {
+  std::stringstream out;
+  switch (projKind) {
+    case KindType::STATICLIB: {
+      out << "add_library(" << projName << " STATIC ${SRCS})\n";
+      break;
+    }
+    case KindType::SHAREDLIB: {
+      out << "add_library(" << projName << " SHARED ${SRCS})\n";
+      break;
+    }
+    case KindType::CONSOLEAPP: {
+      out << "add_executable(" << projName << " ${SRCS})\n";
+      break;
+    }
+  }
+  return out.str();
+}
+
+std::string CMakePlatform::BuildProjectLanguage(const std::string &projName, const LanguageType &projLang, const std::string &projDialect) {
+  std::stringstream out;
+
+  out << "set_property(TARGET " << projName << " ";
+  switch (projLang) {
+    case LanguageType::C: {
+      out << "PROPERTY C_STANDARD " << projDialect;
+    break;
+    }
+    case LanguageType::CXX: {
+      out << "PROPERTY CXX_STANDARD " << projDialect;
+      break;
+    }
+  }
+  out << ")\n";
+  return out.str();
+}
+
+std::string CMakePlatform::BuildProjectIncludeDirs(const std::string &projName, const std::vector<std::filesystem::path> &projIncludeDirs) {
+  std::stringstream out;
+  out << "target_include_directories(" << projName << " PRIVATE\n";
+  for (auto &dir : projIncludeDirs) {
+    std::string keyword = CheckKeyword(*dir.begin());
+    std::filesystem::path parsedPath = dir;
+    if (!keyword.empty()) {
+      bool first = true;
+      for (auto &path : dir) {
+        if (first) {
+          first = false;
+          parsedPath = keyword;
+          continue;
+        }
+        parsedPath /= path;
+      }
+    }
+    out << parsedPath << "\n";
+  }
+
+  out << ")\n";
+
+  return out.str();
+}
+
+std::string CMakePlatform::BuildProjectLinks(const std::string &projName, const std::vector<std::string> projLinks) {
+  std::stringstream out;
+  out << "target_link_libraries(" << projName << "\n";
+
+  for (auto &src : projLinks) {
+    out << src << "\n";
+  }
+
+  out << ")\n";
+  return out.str();
+}
+
+std::string CMakePlatform::BuildProjectFlags(const std::string &projName, const std::vector<std::string> projFlags) {
+  std::stringstream out;
+  out << "target_compile_options(" << projName << " PRIVATE\n";
+  for (auto &flag : projFlags)
+    out << flag << "\n";
+  out << ")\n";
+  return out.str();
+}
+
+std::string CMakePlatform::BuildProjectDefines(const std::string &projName, const std::vector<std::string> projDefines) {
+  std::stringstream out;
+  out << "target_compile_definitions(" << projName << " PUBLIC\n";
+  for (auto &define : projDefines)
+    out << define << "\n";
+  out << ")\n";
+  return out.str();
+}
+
+std::string CMakePlatform::BuildProject(const ProjectConfig &proj, const std::filesystem::path &relPath) {
   std::stringstream out;
 
   if (!proj.Files.empty()) {
-    out << "set(SRCS\n";
-    for (auto &src : proj.Files) {
-      std::string keyword = CheckKeyword(*src.begin());
-      std::filesystem::path workingPath = src;
-      if (!keyword.empty()) {
-        workingPath = keyword / src.relative_path();
-      }
+    out << BuildProjectFiles(proj.Files, relPath) << "\n";
+  }
+  out << BuildProjectKind(proj.Name, proj.Kind) << "\n";
+  out << BuildProjectLanguage(proj.Name, proj.Language, proj.Dialect);
 
-      if (!StrEqual(src.filename().string(), "*")) {
-        out << src << "\n";
-        continue;
-      }
-    }
+ 
+  if (!proj.PrecompiledHeader.empty()) {
+    out << "target_precompile_headers(" << proj.Name << " PUBLIC "
+       << proj.PrecompiledHeader << ")\n\n";
   }
 
-  if (!cfg.Files.empty()) {
-    ss << "set(SRCS\n";
-
-    std::vector<std::filesystem::path> tmp;
-
-    for (auto file : cfg.Files) {
-      if (!StrEqual(file.filename().string(), "*")) {
-        tmp.push_back(file);
-        continue;
-      }
-
-      bool hasKeyword = false;
-
-      std::filesystem::path tmpFile = ContainsWorkspaceKeyword(file);
-
-      if (!StrEqual(tmpFile.generic_string(), file.generic_string())) {
-        hasKeyword = true;
-        file = tmpFile;
-      }
-
-      std::filesystem::path actualPath;
-      if (!cfg.Directory.has_parent_path() || hasKeyword)
-        actualPath = m_WorkspaceConfig.WorkingDirectory;
-      else
-        actualPath = cfg.Directory;
-
-      std::filesystem::path relPath = actualPath;
-
-      if (file.has_parent_path())
-        actualPath /= file.parent_path();
-
-      try {
-        for (const auto &entry :
-             std::filesystem::recursive_directory_iterator(actualPath)) {
-          if (entry.path().extension() == file.extension()) {
-            std::filesystem::path relativePath =
-                std::filesystem::relative(entry.path(), relPath);
-            std::filesystem::path pushBack;
-            if (hasKeyword) {
-              pushBack /= "${CMAKE_SOURCE_DIR}" / relativePath;
-            } else {
-              pushBack = relativePath;
-            }
-            tmp.push_back(pushBack);
-          }
-        }
-      } catch (std::filesystem::filesystem_error) {
-        std::cerr << "Failed to find directory: '"
-                  << actualPath.generic_string() << "' : for project: '"
-                  << cfg.Name << "'!\n";
-      }
-    }
-
-    for (auto &src : tmp) {
-      ss << "    " << src << std::endl;
-    }
-    ss << ")\n";
+  if (!proj.IncludedDirectories.empty()) {
+    out << BuildProjectIncludeDirs(proj.Name, proj.IncludedDirectories) << "\n";
   }
 
-  switch (cfg.Kind) {
-  case KindType::STATICLIB: {
-    ss << "add_library(" << cfg.Name << " STATIC ${SRCS})\n";
-    break;
+  if (!proj.Links.empty()) {
+    out << BuildProjectLinks(proj.Name, proj.Links) << "\n";
   }
-  case KindType::SHAREDLIB: {
-    ss << "add_library(" << cfg.Name << " SHARED ${SRCS})\n";
-    break;
-  }
-  case KindType::CONSOLEAPP: {
-    ss << "add_executable(" << cfg.Name << " ${SRCS})\n";
-    break;
-  }
-  default:
-    break;
+  if (!proj.CompileFlags.empty()) {
+    out << BuildProjectFlags(proj.Name, proj.CompileFlags) << "\n";
   }
 
-  switch (cfg.Language) {
-  case LanguageType::C: {
-    ss << "set_property(TARGET " << cfg.Name << " PROPERTY C_STANDARD "
-       << cfg.Dialect << ")\n\n";
-    break;
-  }
-  case LanguageType::CXX: {
-    ss << "set_property(TARGET " << cfg.Name << " PROPERTY CXX_STANDARD "
-       << cfg.Dialect << ")\n\n";
-    break;
-  }
-  default:
-    break;
+  if (!proj.Defines.empty()) {
+    out << BuildProjectDefines(proj.Name, proj.CompileFlags) << "\n";
   }
 
-  if (!cfg.PrecompiledHeader.empty()) {
-    ss << "target_precompile_headers(" << cfg.Name << " PUBLIC "
-       << cfg.PrecompiledHeader << ")\n";
+  if (!m_WorkspaceConfig.Defines.empty() && !proj.Name.empty()) {
+    out << "target_compile_definitions(" << proj.Name << " PUBLIC GDEFINES)\n";
   }
 
-  if (!cfg.IncludedDirectories.empty()) {
-    ss << "target_include_directories(" << cfg.Name << " PRIVATE\n";
+  for (auto &filter : proj.Filters)
+    out << BuildFilter(filter, proj.Name);
 
-    for (auto &src : cfg.IncludedDirectories) {
-      ss << "    " << ReplaceWorkspaceKeyword(src) << std::endl;
-    }
-
-    ss << ")\n\n";
-  }
-
-  if (!cfg.Links.empty()) {
-    ss << "target_link_libraries(" << cfg.Name << "\n";
-
-    for (auto &src : cfg.Links) {
-      ss << "    " << src << std::endl;
-    }
-
-    ss << ")\n\n";
-  }
-  if (!cfg.CompileFlags.empty()) {
-    ss << "target_compile_options(" << cfg.Name << " PRIVATE\n";
-    for (auto &flag : cfg.CompileFlags)
-      ss << "    " << flag << "\n";
-    ss << ")\n\n";
-  }
-
-  if (!cfg.Defines.empty()) {
-    ss << "target_compile_definitions(" << cfg.Name << " PUBLIC\n";
-    for (auto &define : cfg.Defines)
-      ss << "    " << define << std::endl;
-    ss << ")\n\n";
-  }
-
-  if (!m_WorkspaceConfig.Defines.empty() && !cfg.Name.empty()) {
-    ss << "target_compile_definitions(" << cfg.Name << " PUBLIC GDEFINES)\n";
-  }
-
-  for (auto &filter : cfg.Filters)
-    ss << BuildFilter(filter, cfg.Name);
-
-  for (auto &external : cfg.Externals)
-    ss << "add_subdirectory(" << external << ")\n";
-
-  return ss.str();
+  return out.str();
 }
 
 std::string CMakePlatform::BuildFilter(const FilterConfig &cfg,
                                        const std::string &target) {
   std::stringstream ss;
 
-  if (cfg.Name.find("system") != NPOS)
-    ss << BuildFilterPlatform(cfg, target);
-  else if (cfg.Name.find("configurations") != NPOS)
-    ss << BuildFilterConfigurations(cfg, target);
+  bool isSystem = StrEqual(cfg.Type, "system");
+  bool isConfig = isSystem ? false : StrEqual(cfg.Type, "configuration");
+
+  if (!isSystem && !isConfig) return std::string();
+  
 
   return ss.str();
 }

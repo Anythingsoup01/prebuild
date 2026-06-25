@@ -162,7 +162,7 @@ Platform::Platform(const Utils::System &system,
         } else if (StrEqual(block, "External")) {
           std::string external = GetStringVariable(state, "External");
           rootFile.Externals.push_back(external);
-          std::filesystem::path relativePath = m_SearchDirectory / external;
+          std::filesystem::path relativePath = m_SearchDirectory / external; // TODO: FIX THIS, THIS ONLY GOES FROM THE ROOT DIR!
           m_TMPPaths.push_back(relativePath);
         }
 

@@ -1,4 +1,7 @@
-cmake_minimum_required(VERSION 4.1.2)
+cmake_minimum_required(VERSION 4.3.3)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-project(Test LANGUAGES)
-add_subdirectory(Daddy)
+project(Test LANGUAGES C)
+add_library()
+
+set_property(TARGET  PROPERTY C_STANDARD )
+

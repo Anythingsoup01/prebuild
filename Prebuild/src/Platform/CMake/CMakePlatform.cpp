@@ -44,8 +44,6 @@ CMakePlatform::CMakePlatform(const WorkspaceConfig &workspaceConfig,
 // -----------------------------------------------------------------------
 
 void CMakePlatform::Build() {
-  std::stringstream ss;
-
   bool containsC = false;
   bool containsCXX = false;
 
@@ -56,23 +54,46 @@ void CMakePlatform::Build() {
 
   // Looping over each File Config
   for (auto &cfg : m_FileConfigs) {
-    std::vector<std::string> subFileBlocks = {};
+    std::stringstream ss;
     // Looping over each project in the File Config
     for (auto &proj : cfg.Projects) {
       // These are a global so the entire project can compile dependencies of different languages and link them
       if (proj.Language == LanguageType::C) containsC = true;
       if (proj.Language == LanguageType::CXX) containsCXX = true;
-      std::string block = BuildProject(proj, cfg.Directory.parent_path());
+      std::string block = BuildProject(proj, cfg.Directory);
+
+      if (StrEqual(cfg.Directory.string(), m_WorkspaceConfig.WorkingDirectory.string())) {
+        rootFileBlocks.push_back(block);
+      } else {
+        ss << block << "\n\n";
+      }
     }
+
+    for (auto &ext : cfg.Externals) {
+      std::string block = "add_subdirectory(" + ext + ")\n";
+
+      if (StrEqual(cfg.Directory.string(), m_WorkspaceConfig.WorkingDirectory.string())) {
+        rootFileBlocks.push_back(block);
+      } else {
+        ss << block << "\n\n";
+      }
+    }
+
+    if (ss.str().empty()) {
+      continue;
+    }
+
+    std::ofstream out(cfg.Directory / "CMakeLists.txt");
+    if (!out.is_open()) {
+      std::cerr << "failed to generate - "
+        << (cfg.Directory / "CMakeLists.txt").generic_string()
+        << std::endl;
+      continue;
+    }
+    out << ss.rdbuf();
   }
 
-  for (auto &cfg : m_Projects) {
-    if (cfg.Language == LanguageType::C)
-      containsC = true;
-    if (cfg.Language == LanguageType::CXX)
-      containsCXX = true;
-  }
-
+  std::stringstream ss;
   ss << "cmake_minimum_required(VERSION " << m_Version << ")\n"
      << "set(CMAKE_EXPORT_COMPILE_COMMANDS ON)\n"
      << "project(" << m_WorkspaceConfig.Name << " LANGUAGES";
@@ -94,34 +115,17 @@ void CMakePlatform::Build() {
     ss << ")\n\n";
   }
 
-  for (const auto &cfg : m_Projects) {
-    if (!cfg.External) {
-      ss << BuildProject(cfg);
-    } else {
-      std::stringstream ess;
-      ess << BuildProject(cfg);
-
-      std::ofstream out(cfg.Directory / "CMakeLists.txt");
-      if (!out.is_open()) {
-        std::cerr << "failed to generate - "
-                  << (cfg.Directory / "CMakeLists.txt").generic_string()
-                  << std::endl;
-        continue;
-      }
-      out << ess.rdbuf();
-      out.close();
-    }
-  }
-
-  for (auto &external : m_WorkspaceConfig.Externals)
-    ss << "add_subdirectory(" << external << ")\n";
-
   std::ofstream out(m_WorkspaceConfig.WorkingDirectory / "CMakeLists.txt");
   if (!out.is_open()) {
     std::stringstream err;
     Utils::PrintWarning("Could not generate root CMakeLists.txt");
     return;
   }
+
+  for (auto &block : rootFileBlocks) {
+    ss << block << "\n";
+  }
+
   out << ss.str();
   out.close();
 }
@@ -132,17 +136,17 @@ std::string CheckKeyword(const std::filesystem::path &rootPath) {
   return std::string();
 }
 
-std::string RecursiveSearchForExtension(const std::filesystem::path &searchPath, const std::string &keyword, const std::string &extension) {
+std::string RecursiveSearchForExtension(const std::filesystem::path &workingDir, const std::filesystem::path &searchPath, const std::string &keyword, const std::string &extension) {
   std::stringstream out;
   try {
     for (const auto &entry : std::filesystem::recursive_directory_iterator(searchPath)) {
       if (entry.path().extension() == extension) {
-        std::filesystem::path relativePath = std::filesystem::relative(entry.path(), relPath);
+        std::filesystem::path relPath = std::filesystem::relative(entry.path(), workingDir);
         // TODO: Handle multiple keywords when the time comes
         if (!keyword.empty()) {
           out << keyword << "/";
         }
-        out << relativePath.generic_string() << "\n";
+        out << relPath.generic_string() << "\n";
       }
     }
   } catch (std::filesystem::filesystem_error e) {
@@ -151,17 +155,17 @@ std::string RecursiveSearchForExtension(const std::filesystem::path &searchPath,
   return out.str();
 }
 
-std::string SearchForExtension(const std::filesystem::path &searchPath, const std::string &keyword, const std::string &extension) {
+std::string SearchForExtension(const std::filesystem::path &workingDir, const std::filesystem::path &searchPath, const std::string &keyword, const std::string &extension) {
   std::stringstream out;
   try {
     for (const auto &entry : std::filesystem::directory_iterator(searchPath)) {
       if (entry.path().extension() == extension) {
-        std::filesystem::path relativePath = std::filesystem::relative(entry.path(), relPath);
+        std::filesystem::path relPath = std::filesystem::relative(entry.path(), workingDir);
         // TODO: Handle multiple keywords when the time comes
         if (!keyword.empty()) {
           out << keyword << "/";
         }
-        out << relativePath.generic_string() << "\n";
+        out << relPath.generic_string() << "\n";
       }
     }
   } catch (std::filesystem::filesystem_error e) {
@@ -171,13 +175,10 @@ std::string SearchForExtension(const std::filesystem::path &searchPath, const st
 
 }
 
-//
-//  Used to parse the files of a project config
-//
-std::string CMakePlatform::BuildProjectFiles(const std::vector<std::filesystem::path>& files, const std::filesystem::path &relPath) {
+std::string CMakePlatform::BuildProjectFiles(const std::string &projName, const std::vector<std::filesystem::path>& files, const std::filesystem::path &relPath) {
   std::stringstream out;
 
-  out << "set(SRCS\n";
+  out << "target_sources(" << projName << " PRIVATE\n";
   for (auto &file : files) {
     std::string keyword = CheckKeyword(*file.begin());
     std::filesystem::path parsedPath = file;
@@ -210,8 +211,8 @@ std::string CMakePlatform::BuildProjectFiles(const std::vector<std::filesystem::
     }
 
     try {
-      if (recursiveSearch) out << RecursiveSearchForExtension(searchPath, keyword, file.extension());
-      else SearchForExtension(searchPath, keyword, file.extension());
+      if (recursiveSearch) out << RecursiveSearchForExtension(relPath, searchPath, keyword, file.extension());
+      else SearchForExtension(relPath, searchPath, keyword, file.extension());
     } catch (std::filesystem::filesystem_error e) {
       std::cerr << "Failed to find directory:\n"
                 << "What: " << e.what() << "\n"
@@ -231,15 +232,15 @@ std::string CMakePlatform::BuildProjectKind(const std::string &projName, const K
   std::stringstream out;
   switch (projKind) {
     case KindType::STATICLIB: {
-      out << "add_library(" << projName << " STATIC ${SRCS})\n";
+      out << "add_library(" << projName << ")\n";
       break;
     }
     case KindType::SHAREDLIB: {
-      out << "add_library(" << projName << " SHARED ${SRCS})\n";
+      out << "add_library(" << projName << ")\n";
       break;
     }
     case KindType::CONSOLEAPP: {
-      out << "add_executable(" << projName << " ${SRCS})\n";
+      out << "add_executable(" << projName << ")\n";
       break;
     }
   }
@@ -322,12 +323,12 @@ std::string CMakePlatform::BuildProjectDefines(const std::string &projName, cons
 std::string CMakePlatform::BuildProject(const ProjectConfig &proj, const std::filesystem::path &relPath) {
   std::stringstream out;
 
-  if (!proj.Files.empty()) {
-    out << BuildProjectFiles(proj.Files, relPath) << "\n";
-  }
   out << BuildProjectKind(proj.Name, proj.Kind) << "\n";
   out << BuildProjectLanguage(proj.Name, proj.Language, proj.Dialect);
 
+  if (!proj.Files.empty()) {
+    out << BuildProjectFiles(proj.Name, proj.Files, relPath) << "\n";
+  }
  
   if (!proj.PrecompiledHeader.empty()) {
     out << "target_precompile_headers(" << proj.Name << " PUBLIC "
@@ -354,109 +355,61 @@ std::string CMakePlatform::BuildProject(const ProjectConfig &proj, const std::fi
   }
 
   for (auto &filter : proj.Filters)
-    out << BuildFilter(filter, proj.Name);
+    out << BuildFilter(filter);
 
   return out.str();
 }
 
-std::string CMakePlatform::BuildFilter(const FilterConfig &cfg,
-                                       const std::string &target) {
-  std::stringstream ss;
+std::string CMakePlatform::StartFilterSystem(const FilterConfig &cfg) {
+  std::stringstream out;
+
+  std::string platform;
+  if (StrEqual(cfg.Param, "linux"))
+    platform = "UNIX AND NOT APPLE";
+  if (StrEqual(cfg.Param, "windows"))
+    platform = "WIN32";
+
+  out << "if (" << platform << ")\n";
+  return out.str();
+}
+
+std::string CMakePlatform::StartFilterConfiguration(const FilterConfig &cfg) {
+  return "if(CMAKE_BUILD_TYPE STREQUAL " + cfg.Param + ")\n";
+}
+
+std::string CMakePlatform::BuildFilter(const FilterConfig &cfg) {
+  std::stringstream out;
 
   bool isSystem = StrEqual(cfg.Type, "system");
   bool isConfig = isSystem ? false : StrEqual(cfg.Type, "configuration");
 
   if (!isSystem && !isConfig) return std::string();
-  
 
-  return ss.str();
-}
+  if (isSystem) {
+    out << StartFilterSystem(cfg) << "\n";
+  } else {
+    out << StartFilterConfiguration(cfg) << "\n";
+  }
 
-std::string CMakePlatform::BuildFilterPlatform(const FilterConfig &cfg,
-                                               const std::string &target) {
-  std::stringstream ss;
-  std::string platform;
-  std::string filter = cfg.Name;
-  filter.erase(0, 7);
-  if (filter == "linux")
-    platform = "UNIX AND NOT APPLE";
-  else if (filter == "windows")
-    platform = "WIN32";
-
-  ss << "if (" << platform << ")\n";
   if (!cfg.Files.empty()) {
-    ss << "target_sources(" << target << "PRIVATE\n";
-    for (auto &file : cfg.Files)
-      ss << "    " << file << std::endl;
-    ss << ")\n";
+    out << BuildProjectFiles(cfg.ParentProject->Name, cfg.Files, cfg.ParentProject->WorkingDirectory) << "\n";
   }
+
   if (!cfg.Defines.empty()) {
-    ss << "target_compile_definitions(" << target << "\nPUBLIC\n";
-    for (auto &define : cfg.Defines)
-      ss << "    " << define << std::endl;
-    ss << ")\n";
+    out << BuildProjectDefines(cfg.ParentProject->Name, cfg.Defines) << "\n";
   }
 
   if (!cfg.Links.empty()) {
-    ss << "target_link_libraries(" << target << "\n";
-    for (auto &link : cfg.Links)
-      ss << "    " << link << std::endl;
-    ss << ")\n";
+    out << BuildProjectLinks(cfg.ParentProject->Name, cfg.Links) << "\n";
   }
+
   if (!cfg.CompileFlags.empty()) {
-    ss << "target_compile_options(" << target << " PRIVATE\n";
-    for (auto &flag : cfg.CompileFlags)
-      ss << "    " << flag << "\n";
-    ss << ")\n\n";
+    out << BuildProjectFlags(cfg.ParentProject->Name, cfg.CompileFlags) << "\n";
   }
 
-  ss << "endif(" << platform << ")\n";
+  out << "endif()\n";
 
-  return ss.str();
-}
-
-std::string
-CMakePlatform::BuildFilterConfigurations(const FilterConfig &cfg,
-                                         const std::string &target) {
-  std::stringstream ss;
-  std::string config;
-  std::string filter = cfg.Name;
-  filter.erase(0, 15);
-  for (auto &configuration : m_WorkspaceConfig.Configurations) {
-    if (filter == configuration)
-      config = configuration;
-  }
-
-  if (config.empty()) {
-    std::stringstream msg;
-    msg << "Configuration " << filter << " could not be built!\n"
-        << "Please make sure it exists in the workspace!";
-    Utils::PrintError(msg);
-    return std::string();
-  }
-  ss << "if(CMAKE_BUILD_TYPE STREQUAL " << config << ")\n";
-  if (!cfg.Defines.empty()) {
-    ss << "target_compile_definitions(" << target << "\nPUBLIC\n";
-    for (auto &define : cfg.Defines)
-      ss << "    " << define << std::endl;
-    ss << ")\n";
-  }
-
-  if (!cfg.Links.empty()) {
-    ss << "target_link_libraries(" << target << "\n";
-    for (auto &link : cfg.Links)
-      ss << "    " << link << std::endl;
-    ss << ")\n";
-  }
-  if (!cfg.CompileFlags.empty()) {
-    ss << "target_compile_options(" << target << " PRIVATE\n";
-    for (auto &flag : cfg.CompileFlags)
-      ss << "    " << flag << "\n";
-    ss << ")\n\n";
-  }
-  ss << "endif(CMAKE_BUILD_TYPE STREQUAL " << config << ")\n";
-
-  return ss.str();
+  return out.str();
 }
 
 } // namespace Prebuild

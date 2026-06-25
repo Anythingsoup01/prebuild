@@ -1,11 +1,17 @@
-Project =
-{
-    name = "Daddy",
-    kind = "StaticLib",
-    files =
-    {
-        "${WORKSPACEDIR}Daddy/src/*.cpp",
-    },
+Project = {
+  name = "Daddy",
+  kind = "StaticLib",
+  files = {
+    "${WORKSPACEDIR}Daddy/src/*.cpp",
+  },
 }
 
-External = "Child1"
+Project = {
+  name = "Mommy",
+  kind = "StaticLib",
+  files = {
+    "${WORKSPACEDIR}Daddy/src/*.cpp",
+  },
+}
+
+External = "Child"

@@ -11,8 +11,7 @@ Project = {
     pch = "Prebuild/src/pbpch.h",
 
     files = {
-        "Prebuild/src/*.cpp",
-        "Prebuild/src/*.h",
+        "Prebuild/src/**.cpp",
     },
 
     includedirs = {

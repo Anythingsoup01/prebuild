@@ -134,8 +134,6 @@ Platform::Platform(const Utils::System &system,
       std::filesystem::path relativePath = m_SearchDirectory / external;
       m_TMPPaths.push_back(relativePath);
     }
-
-    lua_pop(state, 1);
   }
 
   rootFile.Directory = m_SearchDirectory;
@@ -302,7 +300,9 @@ Platform::ProjectConfig Platform::GetProjectVariables(lua_State *L) {
         int configIndex = lua_gettop(L) - 1;
 
         while (lua_next(L, configIndex) != 0) {
-          cfg.Filters.push_back(ProcessFilter(L));
+          FilterConfig filter = ProcessFilter(L);
+          filter.ParentProject = &cfg;
+          cfg.Filters.push_back(filter);
           lua_pop(L, 1);
         }
       }

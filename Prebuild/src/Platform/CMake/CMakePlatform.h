@@ -11,7 +11,7 @@ public:
 
 private:
   void Build();
-  std::string BuildProjectFiles(const std::vector<std::filesystem::path>& files, const std::filesystem::path &relPath);
+  std::string BuildProjectFiles(const std::string &projName, const std::vector<std::filesystem::path>& files, const std::filesystem::path &relPath);
   std::string BuildProjectKind(const std::string &projName, const KindType &projKind);
   std::string BuildProjectLanguage(const std::string &projName, const LanguageType &projLang, const std::string &projDialect);
   std::string BuildProjectIncludeDirs(const std::string &projName, const std::vector<std::filesystem::path> &projIncludeDirs);
@@ -21,14 +21,12 @@ private:
   
   std::string BuildProject(const ProjectConfig &proj, const std::filesystem::path &relPath);
 
-  std::string BuildFilter(const FilterConfig &cfg, const std::string &target);
-  std::string BuildFilterPlatform(const FilterConfig &cfg,
-                                  const std::string &target);
-  std::string BuildFilterConfigurations(const FilterConfig &cfg,
-                                        const std::string &target);
+  std::string StartFilterSystem(const FilterConfig &filter);
+  std::string StartFilterConfiguration(const FilterConfig &filter);
+
+  std::string BuildFilter(const FilterConfig &cfg);
 
   std::string GetCMakeSyntax(const std::string &keyword);
-
 private:
   std::string m_Version;
   WorkspaceConfig m_WorkspaceConfig;

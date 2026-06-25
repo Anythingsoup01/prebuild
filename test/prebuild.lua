@@ -1,6 +1,5 @@
-Workspace =
-{
-    name = "Test",
+Workspace = {
+  name = "Test",
 }
 
 External = "Daddy"

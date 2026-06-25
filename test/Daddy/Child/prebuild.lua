@@ -1,4 +1,3 @@
-Project =
-{
-    name = "Child"
+Project = {
+    name = "Child",
 }

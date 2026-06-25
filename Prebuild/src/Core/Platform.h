@@ -50,6 +50,8 @@ public:
     std::vector<std::string> Externals;
   };
 
+  struct ProjectConfig;
+
   struct FilterConfig {
     std::string Type;
     std::string Param;
@@ -57,18 +59,18 @@ public:
     std::vector<std::string> Defines;
     std::vector<std::string> Links;
     std::vector<std::string> CompileFlags;
+    ProjectConfig *ParentProject;
   };
 
   struct ProjectConfig {
     std::string Name;
     std::string Dialect;
-
     LanguageType Language;
     KindType Kind;
 
     std::string PrecompiledHeader;
 
-    bool External;
+    std::filesystem::path WorkingDirectory;
 
     std::vector<std::filesystem::path> Files;
     std::vector<std::filesystem::path> IncludedDirectories;

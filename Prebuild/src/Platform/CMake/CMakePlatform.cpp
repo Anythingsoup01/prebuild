@@ -62,7 +62,7 @@ void CMakePlatform::Build() {
       if (proj.Language == LanguageType::CXX) containsCXX = true;
       std::string block = BuildProject(proj, cfg.Directory);
 
-      if (StrEqual(cfg.Directory.string(), m_WorkspaceConfig.WorkingDirectory.string())) {
+      if (cfg.Directory.string() == m_WorkspaceConfig.WorkingDirectory.string()) {
         rootFileBlocks.push_back(block);
       } else {
         ss << block << "\n\n";
@@ -72,7 +72,7 @@ void CMakePlatform::Build() {
     for (auto &ext : cfg.Externals) {
       std::string block = "add_subdirectory(" + ext + ")\n";
 
-      if (StrEqual(cfg.Directory.string(), m_WorkspaceConfig.WorkingDirectory.string())) {
+      if (cfg.Directory.string() == m_WorkspaceConfig.WorkingDirectory.string()) {
         rootFileBlocks.push_back(block);
       } else {
         ss << block << "\n\n";
@@ -87,10 +87,11 @@ void CMakePlatform::Build() {
     if (!out.is_open()) {
       std::cerr << "failed to generate - "
         << (cfg.Directory / "CMakeLists.txt").generic_string()
-        << std::endl;
+        << "\n";
       continue;
     }
     out << ss.rdbuf();
+    out.close();
   }
 
   std::stringstream ss;

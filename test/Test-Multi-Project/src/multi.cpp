@@ -1,0 +1,3 @@
+void multi() {
+  return;
+}

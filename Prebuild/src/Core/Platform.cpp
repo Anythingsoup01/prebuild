@@ -64,11 +64,18 @@ bool Platform::StrEqual(const std::string &in, const std::string &check) {
   return false;
 }
 
+std::string GetStringVariable(lua_State *L, const std::string &variableName) {
+  if (!lua_isstring(L, -1)) {
+    return std::string();
+  }
+  return lua_tostring(L, -1);
+}
+
 std::vector<std::string> GetTableVariables(lua_State *L,
                                            const std::string variableName) {
   std::vector<std::string> out;
   if (!lua_istable(L, -1) && lua_isstring(L, -1)) {
-    out.push_back(lua_tostring(L, -1));
+    out.push_back(GetStringVariable(L, variableName));
   } else {
     lua_pushnil(L);
     int index = lua_gettop(L) - 1;
@@ -81,11 +88,6 @@ std::vector<std::string> GetTableVariables(lua_State *L,
     }
   }
   return out;
-}
-
-std::string GetStringVariable(lua_State *L, const std::string &variableName) {
-  std::vector<std::string> out = GetTableVariables(L, variableName);
-  return out[0];
 }
 
 Platform::Platform(const Utils::System &system,
@@ -126,11 +128,19 @@ Platform::Platform(const Utils::System &system,
       m_WorkspaceConfig = GetWorkspaceVariables(state);
       m_WorkspaceConfig.WorkingDirectory = m_SearchDirectory;
       workspace_initialized = true;
-    } else if (StrEqual(block, "Project") || StrEqual(block, "External")) {
+    } else if (StrEqual(block, "Project")) {
       rootFile.Projects.push_back(GetProjectVariables(state));
     } else if (StrEqual(block, "External")) {
-      std::string external = GetStringVariable(state, "External");
+      lua_getglobal(state, "External");
+
+      if (!lua_isstring(state, -1)) {
+        lua_pop(state, 1);
+        continue;
+      }
+
+      std::string external = lua_tostring(state, -1);
       rootFile.Externals.push_back(external);
+      lua_pop(state, 1);
       std::filesystem::path relativePath = m_SearchDirectory / external;
       m_TMPPaths.push_back(relativePath);
     }
@@ -148,7 +158,7 @@ Platform::Platform(const Utils::System &system,
 
     // Sub paths (Externals) should be, for the most part, exactly the same as above
     for (auto &path : m_ExternalPaths) {
-      luaBlocks = ParseLuaBlocks(path);
+      luaBlocks = ParseLuaBlocks(path / "prebuild.lua");
       ProjectFileConfig rootFile = {};
       for (auto& block : luaBlocks) {
         if (luaL_dostring(state, block.c_str()) != LUA_OK) {
@@ -160,16 +170,22 @@ Platform::Platform(const Utils::System &system,
         if (StrEqual(block, "Project")) {
           rootFile.Projects.push_back(GetProjectVariables(state));
         } else if (StrEqual(block, "External")) {
-          std::string external = GetStringVariable(state, "External");
+          lua_getglobal(state, "External");
+
+          if (!lua_isstring(state, -1)) {
+            lua_pop(state, 1);
+            continue;
+          }
+
+          std::string external = lua_tostring(state, -1);
           rootFile.Externals.push_back(external);
-          std::filesystem::path relativePath = m_SearchDirectory / external; // TODO: FIX THIS, THIS ONLY GOES FROM THE ROOT DIR!
+          lua_pop(state, 1);
+          std::filesystem::path relativePath = path / external;
           m_TMPPaths.push_back(relativePath);
         }
-
-        lua_pop(state, 1);
       }
 
-      rootFile.Directory = m_SearchDirectory;
+      rootFile.Directory = path;
       fileConfigs.push_back(rootFile);
     }
   }

@@ -1,0 +1,3 @@
+void recurse() {
+  return;
+}

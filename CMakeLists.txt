@@ -1,7 +1,24 @@
 cmake_minimum_required(VERSION 4.3.3)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-project( LANGUAGES C)
-add_library()
+project(Prebuild LANGUAGES CXX)
+add_executable(prebuild)
 
-set_property(TARGET  PROPERTY C_STANDARD )
+set_property(TARGET prebuild PROPERTY CXX_STANDARD 20)
+target_sources(prebuild PRIVATE
+Prebuild/src/Core/Utils.cpp
+Prebuild/src/Core/Platform.cpp
+Prebuild/src/Platform/CMake/CMakePlatform.cpp
+Prebuild/src/prebuild.cpp
+)
+
+target_precompile_headers(prebuild PUBLIC Prebuild/src/pbpch.h)
+
+target_include_directories(prebuild PRIVATE
+"Prebuild/src"
+)
+
+target_link_libraries(prebuild
+lua5.4
+)
+
 

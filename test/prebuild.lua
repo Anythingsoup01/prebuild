@@ -20,6 +20,17 @@ Project = {
   includedirs = {
     "include",
   },
+
+  filters = {
+    {
+      type = "configuration",
+      param = "Debug",
+
+      defines = {
+        "test_config_define"
+      }
+    }
+  }
 }
 
 External = "Test-External"

@@ -19,7 +19,7 @@ private:
   std::string BuildProjectFlags(const std::string &projName, const std::vector<std::string> projFlags);
   std::string BuildProjectDefines(const std::string &projName, const std::vector<std::string> projDefines);
   
-  std::string BuildProject(const ProjectConfig &proj, const std::filesystem::path &relPath);
+  std::string BuildProject(ProjectConfig &proj, const std::filesystem::path &relPath);
 
   std::string StartFilterSystem(const FilterConfig &filter);
   std::string StartFilterConfiguration(const FilterConfig &filter);

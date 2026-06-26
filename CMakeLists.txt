@@ -22,5 +22,4 @@ lua5.4
 )
 
 
-add_subdirectory(test)
 

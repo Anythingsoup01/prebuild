@@ -14,5 +14,6 @@ target_compile_definitions(Test-Ext PUBLIC
 TEST_DEFINES
 )
 
+target_compile_definitions(Test-Ext PUBLIC GDEFINES)
 
 

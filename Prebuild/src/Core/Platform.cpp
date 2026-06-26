@@ -317,7 +317,6 @@ Platform::ProjectConfig Platform::GetProjectVariables(lua_State *L) {
 
         while (lua_next(L, configIndex) != 0) {
           FilterConfig filter = ProcessFilter(L);
-          filter.ParentProject = &cfg;
           cfg.Filters.push_back(filter);
           lua_pop(L, 1);
         }

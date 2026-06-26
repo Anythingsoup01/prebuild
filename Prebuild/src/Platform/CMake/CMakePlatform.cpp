@@ -321,7 +321,7 @@ std::string CMakePlatform::BuildProjectDefines(const std::string &projName, cons
   return out.str();
 }
 
-std::string CMakePlatform::BuildProject(const ProjectConfig &proj, const std::filesystem::path &relPath) {
+std::string CMakePlatform::BuildProject(ProjectConfig &proj, const std::filesystem::path &relPath) {
   std::stringstream out;
 
   out << BuildProjectKind(proj.Name, proj.Kind) << "\n";
@@ -355,8 +355,10 @@ std::string CMakePlatform::BuildProject(const ProjectConfig &proj, const std::fi
     out << "target_compile_definitions(" << proj.Name << " PUBLIC GDEFINES)\n";
   }
 
-  for (auto &filter : proj.Filters)
+  for (auto &filter : proj.Filters) {
+    filter.ParentProject = &proj;
     out << BuildFilter(filter);
+  }
 
   return out.str();
 }

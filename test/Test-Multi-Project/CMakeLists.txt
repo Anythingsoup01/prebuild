@@ -9,6 +9,7 @@ target_include_directories(Test-Mutli-1 PRIVATE
 include
 )
 
+target_compile_definitions(Test-Mutli-1 PUBLIC GDEFINES)
 
 
 add_library(Test-Multi-2)
@@ -22,5 +23,6 @@ target_include_directories(Test-Multi-2 PRIVATE
 include
 )
 
+target_compile_definitions(Test-Multi-2 PUBLIC GDEFINES)
 
 

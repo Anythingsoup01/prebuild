@@ -348,7 +348,7 @@ std::string CMakePlatform::BuildProject(const ProjectConfig &proj, const std::fi
   }
 
   if (!proj.Defines.empty()) {
-    out << BuildProjectDefines(proj.Name, proj.CompileFlags) << "\n";
+    out << BuildProjectDefines(proj.Name, proj.Defines) << "\n";
   }
 
   if (!m_WorkspaceConfig.Defines.empty() && !proj.Name.empty()) {

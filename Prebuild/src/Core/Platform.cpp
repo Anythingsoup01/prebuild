@@ -305,7 +305,7 @@ Platform::ProjectConfig Platform::GetProjectVariables(lua_State *L) {
     } else if (StrEqual(key, "links")) {
       cfg.Links = GetTableVariables(L, "links");
     } else if (StrEqual(key, "defines")) {
-      cfg.Defines = GetTableVariables(L, "links");
+      cfg.Defines = GetTableVariables(L, "defines");
     } else if (StrEqual(key, "flags")) {
       cfg.CompileFlags = GetTableVariables(L, "flags");
     }

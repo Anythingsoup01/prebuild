@@ -11,5 +11,9 @@ Project = {
   includedirs = {
     "include",
   },
+
+  defines = {
+    "TEST_DEFINES"
+  }
 }
 

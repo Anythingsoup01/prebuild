@@ -10,5 +10,9 @@ target_include_directories(Test-Ext PRIVATE
 include
 )
 
+target_compile_definitions(Test-Ext PUBLIC
+TEST_DEFINES
+)
+
 
 

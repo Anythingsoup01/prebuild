@@ -1,8 +1,8 @@
 Project = {
   name = "Test-Ext",
-  kind = "ConsoleApp",
+  kind = "StaticLib",
   language = "C",
-  dialect = "20",
+  dialect = "99",
 
   files = {
     "src/**.c",

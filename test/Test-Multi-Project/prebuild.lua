@@ -1,6 +1,6 @@
 Project = {
   name = "Test-Mutli-1",
-  kind = "ConsoleApp",
+  kind = "StaticLib",
   language = "C++",
   dialect = "20",
 
@@ -15,7 +15,7 @@ Project = {
 
 Project = {
   name = "Test-Multi-2",
-  kind = "ConsoleApp",
+  kind = "SharedLib",
   language = "C++",
   dialect = "20",
 

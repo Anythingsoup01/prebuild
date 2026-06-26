@@ -283,7 +283,7 @@ std::string CMakePlatform::BuildProjectIncludeDirs(const std::string &projName, 
         parsedPath /= path;
       }
     }
-    out << parsedPath << "\n";
+    out << parsedPath.generic_string() << "\n";
   }
 
   out << ")\n";

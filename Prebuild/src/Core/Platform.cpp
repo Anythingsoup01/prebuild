@@ -2,6 +2,8 @@
 #include "Platform/CMake/CMakePlatform.h"
 #include "pbpch.h"
 
+#include <string.h>
+
 void stackdump(lua_State *L) {
   int i;
   int top = lua_gettop(L);
@@ -214,13 +216,14 @@ std::vector<std::string> Platform::ParseLuaBlocks(const std::filesystem::path &f
     line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
     bool external = strncmp(line.c_str(), "External", strlen("External")) == 0;
 
-    if (line.find("{") != NPOS) {
+    if (strchr(line.c_str(), '{') != NULL) {
       bracketCount++;
-    } else if (line.find("}") != NPOS) {
+    } else if (strchr(line.c_str(), '}') != NULL) {
       bracketCount--;
     }
 
-    block.append(line);
+    if (!line.empty())
+      block.append(line);
 
     if (bracketCount == 0 || external) {
       out.push_back(block);

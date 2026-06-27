@@ -233,11 +233,11 @@ std::string CMakePlatform::BuildProjectKind(const std::string &projName, const K
   std::stringstream out;
   switch (projKind) {
     case KindType::STATICLIB: {
-      out << "add_library(" << projName << "STATIC)\n";
+      out << "add_library(" << projName << " STATIC)\n";
       break;
     }
     case KindType::SHAREDLIB: {
-      out << "add_library(" << projName << "SHARED)\n";
+      out << "add_library(" << projName << " SHARED)\n";
       break;
     }
     case KindType::CONSOLEAPP: {

@@ -213,7 +213,7 @@ std::string CMakePlatform::BuildProjectFiles(const std::string &projName, const 
 
     try {
       if (recursiveSearch) out << RecursiveSearchForExtension(relPath, searchPath, keyword, file.extension());
-      else SearchForExtension(relPath, searchPath, keyword, file.extension());
+      else out << SearchForExtension(relPath, searchPath, keyword, file.extension());
     } catch (std::filesystem::filesystem_error e) {
       std::cerr << "Failed to find directory:\n"
                 << "What: " << e.what() << "\n"

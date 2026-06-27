@@ -5,7 +5,7 @@ Project = {
   dialect = "20",
 
   files = {
-    "src/**.cpp",
+    "src/*.cpp",
   },
 
   includedirs = {

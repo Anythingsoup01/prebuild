@@ -216,9 +216,11 @@ std::vector<std::string> Platform::ParseLuaBlocks(const std::filesystem::path &f
     line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
     bool external = strncmp(line.c_str(), "External", strlen("External")) == 0;
 
+    // We check for both '{' and '}' in the same line for keywords
     if (strchr(line.c_str(), '{') != NULL) {
       bracketCount++;
-    } else if (strchr(line.c_str(), '}') != NULL) {
+    }
+    if (strchr(line.c_str(), '}') != NULL) {
       bracketCount--;
     }
 
